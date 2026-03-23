@@ -206,12 +206,11 @@ export default function ContactDetailPage() {
       type:       activityForm.type,
       subject:    activityForm.subject.trim(),
       notes:      activityForm.notes.trim() || null,
-      due_date:   activityForm.due_date || null,
-      completed:  false,
     }).select().single()
 
     if (error) {
-      toast.error('Failed to log activity')
+      console.error('Activity insert failed:', error)
+      toast.error(`Failed to log activity: ${error.message}`)
     } else {
       setActivities(prev => [data, ...prev])
       setShowModal(false)
