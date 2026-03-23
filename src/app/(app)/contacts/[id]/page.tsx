@@ -24,6 +24,11 @@ import {
   CheckSquare,
   Clock,
   Trash2,
+  Sparkles,
+  Loader2,
+  Copy,
+  Check,
+  MessageSquare,
 } from 'lucide-react'
 
 const supabase = createClient(
@@ -124,6 +129,26 @@ export default function ContactDetailPage() {
   })
   const [savingActivity, setSavingActivity] = useState(false)
   const [savingContact, setSavingContact]   = useState(false)
+
+  // AI Email Writer
+  const [showEmailModal, setShowEmailModal] = useState(false)
+  const [emailTouch, setEmailTouch] = useState(1)
+  const [emailPainPoint, setEmailPainPoint] = useState('')
+  const [emailCompany, setEmailCompany] = useState('')
+  const [emailGenerating, setEmailGenerating] = useState(false)
+  const [generatedEmail, setGeneratedEmail] = useState<{ subject: string; body: string } | null>(null)
+  const [copiedField, setCopiedField] = useState<string | null>(null)
+
+  // AI Call Prep
+  const [showCallPrep, setShowCallPrep] = useState(false)
+  const [callPrepLoading, setCallPrepLoading] = useState(false)
+  const [callBrief, setCallBrief] = useState<{
+    summary: string
+    painPoints: string[]
+    opening: string
+    questions: string[]
+    close: string
+  } | null>(null)
 
   // ── Load data ──────────────────────────────────────────────────────────────
 
@@ -246,6 +271,107 @@ export default function ContactDetailPage() {
     }
   }
 
+  // ── AI Email Writer ─────────────────────────────────────────────────────
+
+  function openEmailWriter() {
+    setEmailPainPoint(contact?.notes ?? '')
+    setEmailCompany(contact?.company ?? '')
+    setGeneratedEmail(null)
+    setShowEmailModal(true)
+  }
+
+  async function handleGenerateEmail() {
+    if (!contact) return
+    setEmailGenerating(true)
+    setGeneratedEmail(null)
+    try {
+      const res = await fetch('/api/ai/write-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          touchNumber: emailTouch,
+          firstName: contact.first_name,
+          company: emailCompany.trim() || contact.company || 'their company',
+          painPoint: emailPainPoint.trim() || 'freight challenges',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Failed to generate email'); }
+      else { setGeneratedEmail(data.email) }
+    } catch { toast.error('Failed to generate email') }
+    setEmailGenerating(false)
+  }
+
+  function copyToClipboard(text: string, field: string) {
+    navigator.clipboard.writeText(text)
+    setCopiedField(field)
+    setTimeout(() => setCopiedField(null), 2000)
+  }
+
+  async function logEmailAsActivity() {
+    if (!generatedEmail || !userId) return
+    const { data, error } = await supabase.from('activities').insert({
+      contact_id: id,
+      user_id: userId,
+      type: 'email',
+      subject: `Sent Touch ${emailTouch}: ${generatedEmail.subject}`,
+      notes: generatedEmail.body,
+    }).select().single()
+    if (error) { toast.error('Failed to log activity') }
+    else {
+      setActivities(prev => [data, ...prev])
+      setShowEmailModal(false)
+      toast.success('Email logged as activity')
+    }
+  }
+
+  // ── AI Call Prep ───────────────────────────────────────────────────────────
+
+  async function handleCallPrep() {
+    if (!contact) return
+    setShowCallPrep(true)
+    setCallPrepLoading(true)
+    setCallBrief(null)
+    try {
+      const res = await fetch('/api/ai/call-prep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contact: {
+            name: `${contact.first_name} ${contact.last_name}`,
+            title: contact.title,
+            company: contact.company,
+            city: contact.city,
+            state: contact.state,
+            notes: contact.notes,
+          },
+          activities: activities.slice(0, 5).map(a => ({
+            type: a.type,
+            subject: a.subject,
+            notes: a.notes,
+            created_at: formatShortDate(a.created_at),
+          })),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Failed to generate brief') }
+      else { setCallBrief(data.brief) }
+    } catch { toast.error('Failed to generate brief') }
+    setCallPrepLoading(false)
+  }
+
+  function copyCallBrief() {
+    if (!callBrief) return
+    const text = `CALL PREP: ${contact?.first_name} ${contact?.last_name} at ${contact?.company}\n\n` +
+      `SUMMARY: ${callBrief.summary}\n\n` +
+      `LIKELY PAIN POINTS:\n${callBrief.painPoints.map(p => `• ${p}`).join('\n')}\n\n` +
+      `OPENING: ${callBrief.opening}\n\n` +
+      `KEY QUESTIONS:\n${callBrief.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}\n\n` +
+      `CLOSE: ${callBrief.close}`
+    navigator.clipboard.writeText(text)
+    toast.success('Brief copied to clipboard')
+  }
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   if (loading) {
@@ -349,13 +475,30 @@ export default function ContactDetailPage() {
                 </button>
               </>
             ) : (
-              <button
-                onClick={() => setEditing(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium opacity-70 hover:opacity-100 transition-opacity"
-                style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
-              >
-                <Edit2 size={14} /> Edit
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => setEditing(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium opacity-70 hover:opacity-100 transition-opacity"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
+                >
+                  <Edit2 size={14} /> Edit
+                </button>
+                <button
+                  onClick={openEmailWriter}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.4)', backgroundColor: 'rgba(212,147,14,0.08)' }}
+                >
+                  <Sparkles size={14} /> Write Email
+                </button>
+                <button
+                  onClick={handleCallPrep}
+                  disabled={callPrepLoading}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.4)', backgroundColor: 'rgba(212,147,14,0.08)' }}
+                >
+                  <MessageSquare size={14} /> {callPrepLoading ? 'Prepping...' : 'Call Prep'}
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -687,6 +830,200 @@ export default function ContactDetailPage() {
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── AI Email Writer Modal ── */}
+      {showEmailModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowEmailModal(false) }}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto"
+            style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.1)' }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles size={18} style={{ color: '#d4930e' }} />
+                <h3 className="text-lg font-semibold text-white">AI Email Writer</h3>
+              </div>
+              <button onClick={() => setShowEmailModal(false)} className="opacity-50 hover:opacity-100">
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Touch selector */}
+            <div>
+              <label className="block text-xs opacity-50 mb-1">Email Touch</label>
+              <select
+                value={emailTouch}
+                onChange={e => setEmailTouch(Number(e.target.value))}
+                className="input-field w-full"
+              >
+                <option value={1} className="bg-[#0f1c35]">Touch 1 — Quick Question</option>
+                <option value={2} className="bg-[#0f1c35]">Touch 2 — Pain Point</option>
+                <option value={3} className="bg-[#0f1c35]">Touch 3 — Social Proof</option>
+                <option value={4} className="bg-[#0f1c35]">Touch 4 — One Lane Offer</option>
+                <option value={5} className="bg-[#0f1c35]">Touch 5 — Market Insight</option>
+                <option value={6} className="bg-[#0f1c35]">Touch 6 — Case Study</option>
+                <option value={7} className="bg-[#0f1c35]">Touch 7 — Breakup</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs opacity-50 mb-1">Pain Point</label>
+              <input
+                value={emailPainPoint}
+                onChange={e => setEmailPainPoint(e.target.value)}
+                placeholder="carrier fallout on Friday afternoons"
+                className="input-field w-full"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs opacity-50 mb-1">Company</label>
+              <input
+                value={emailCompany}
+                onChange={e => setEmailCompany(e.target.value)}
+                placeholder="Acme Manufacturing"
+                className="input-field w-full"
+              />
+            </div>
+
+            <button
+              onClick={handleGenerateEmail}
+              disabled={emailGenerating}
+              className="w-full py-2.5 rounded-lg font-semibold text-sm transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
+              style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}
+            >
+              {emailGenerating ? <><Loader2 size={14} className="animate-spin" /> Generating...</> : <><Sparkles size={14} /> Generate Email</>}
+            </button>
+
+            {/* Generated email output */}
+            {generatedEmail && (
+              <div className="space-y-3 pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs opacity-50">Subject Line</label>
+                    <button onClick={() => copyToClipboard(generatedEmail.subject, 'subject')} className="text-xs flex items-center gap-1 opacity-50 hover:opacity-100">
+                      {copiedField === 'subject' ? <><Check size={12} className="text-green-400" /> Copied</> : <><Copy size={12} /> Copy</>}
+                    </button>
+                  </div>
+                  <p className="text-sm text-white font-medium p-2 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>{generatedEmail.subject}</p>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs opacity-50">Email Body</label>
+                    <button onClick={() => copyToClipboard(generatedEmail.body, 'body')} className="text-xs flex items-center gap-1 opacity-50 hover:opacity-100">
+                      {copiedField === 'body' ? <><Check size={12} className="text-green-400" /> Copied</> : <><Copy size={12} /> Copy</>}
+                    </button>
+                  </div>
+                  <p className="text-sm text-blue-200 whitespace-pre-wrap leading-relaxed p-3 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>{generatedEmail.body}</p>
+                </div>
+                <button
+                  onClick={logEmailAsActivity}
+                  className="w-full py-2 rounded-lg text-sm font-medium opacity-70 hover:opacity-100"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
+                >
+                  Log as Email Activity
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── AI Call Prep Modal ── */}
+      {showCallPrep && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowCallPrep(false) }}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl p-6 max-h-[90vh] overflow-y-auto"
+            style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.1)' }}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <MessageSquare size={18} style={{ color: '#d4930e' }} />
+                <h3 className="text-lg font-semibold text-white">Call Prep Brief</h3>
+              </div>
+              <button onClick={() => setShowCallPrep(false)} className="opacity-50 hover:opacity-100">
+                <X size={20} />
+              </button>
+            </div>
+
+            {callPrepLoading ? (
+              <div className="flex items-center gap-3 py-10 justify-center">
+                <Loader2 size={20} className="animate-spin" style={{ color: '#d4930e' }} />
+                <p className="text-sm opacity-60">Preparing your brief...</p>
+              </div>
+            ) : callBrief ? (
+              <div className="space-y-5">
+                {/* Summary */}
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide opacity-40 mb-1">Quick Summary</p>
+                  <p className="text-sm text-white">{callBrief.summary}</p>
+                </div>
+
+                {/* Pain Points */}
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide opacity-40 mb-2">Likely Pain Points</p>
+                  <div className="space-y-1.5">
+                    {callBrief.painPoints.map((p, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm">
+                        <span className="text-xs font-bold mt-0.5 shrink-0" style={{ color: '#d4930e' }}>•</span>
+                        <span className="text-blue-200">{p}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Opening */}
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide opacity-40 mb-1">Suggested Opening</p>
+                  <p className="text-sm text-white italic p-2.5 rounded" style={{ backgroundColor: 'rgba(212,147,14,0.08)', borderLeft: '3px solid #d4930e' }}>
+                    &ldquo;{callBrief.opening}&rdquo;
+                  </p>
+                </div>
+
+                {/* Questions */}
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide opacity-40 mb-2">Key Questions to Ask</p>
+                  <div className="space-y-2">
+                    {callBrief.questions.map((q, i) => (
+                      <div key={i} className="flex items-start gap-2.5 text-sm p-2 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                        <span className="text-xs font-bold mt-0.5 shrink-0" style={{ color: '#d4930e' }}>{i + 1}.</span>
+                        <span className="text-blue-200">{q}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Close */}
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide opacity-40 mb-1">Suggested Close</p>
+                  <p className="text-sm text-white p-2.5 rounded" style={{ backgroundColor: 'rgba(212,147,14,0.08)', borderLeft: '3px solid #d4930e' }}>
+                    {callBrief.close}
+                  </p>
+                </div>
+
+                {/* Copy button */}
+                <button
+                  onClick={copyCallBrief}
+                  className="w-full py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 opacity-70 hover:opacity-100"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
+                >
+                  <Copy size={14} /> Copy Full Brief
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm opacity-40 text-center py-6">No brief generated yet.</p>
+            )}
           </div>
         </div>
       )}
