@@ -214,6 +214,7 @@ export default function NewCampaignPage() {
       campaign_id: campaign.id,
       contact_id,
       status: 'enrolled',
+      user_id: user.id,
     }))
 
     const BATCH = 100
