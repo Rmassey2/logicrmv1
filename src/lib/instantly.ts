@@ -49,6 +49,24 @@ export async function createCampaign(
       name,
       subject,
       body,
+      campaign_schedule: {
+        schedules: [
+          {
+            name: "Default",
+            timing: { from: "08:00", to: "17:00" },
+            days: {
+              monday: true,
+              tuesday: true,
+              wednesday: true,
+              thursday: true,
+              friday: true,
+              saturday: false,
+              sunday: false,
+            },
+            timezone: "America/Chicago",
+          },
+        ],
+      },
     }),
   })
 }
