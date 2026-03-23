@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Plus, Mail, Send, CheckCircle2, FileEdit, FileText } from 'lucide-react'
 
 const supabase = createClient(
@@ -113,14 +114,13 @@ export default function CampaignsPage() {
             const cfg = STATUS_CONFIG[c.status ?? 'draft'] ?? STATUS_CONFIG.draft
             const StatusIcon = cfg.icon
             return (
-              <button
+              <div
                 key={c.id}
-                onClick={() => router.push(`/campaigns/${c.id}`)}
                 className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4 text-left hover:bg-white/[0.07] transition-colors group"
               >
                 {/* Left: name + status */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-white font-medium group-hover:text-white truncate">{c.name}</p>
+                  <Link href={`/campaigns/${c.id}`} className="text-white font-medium hover:underline truncate block" style={{ color: '#d4930e' }}>{c.name}</Link>
                   <div className="flex items-center gap-2 mt-1.5">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${cfg.class}`}>
                       <StatusIcon className="w-3 h-3" />
@@ -149,7 +149,7 @@ export default function CampaignsPage() {
                     <p className="text-[10px] uppercase tracking-wide text-blue-300/50">Replies</p>
                   </div>
                 </div>
-              </button>
+              </div>
             )
           })}
         </div>
