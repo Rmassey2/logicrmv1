@@ -203,7 +203,8 @@ export default function NewCampaignPage() {
       .single()
 
     if (campaignError || !campaign) {
-      toast.error('Failed to save campaign.')
+      console.error('Campaign insert failed:', campaignError)
+      toast.error(`Failed to save campaign: ${campaignError?.message ?? 'unknown error'}`)
       setSaving(false)
       return
     }
@@ -212,6 +213,7 @@ export default function NewCampaignPage() {
     const contactRows = Array.from(selectedIds).map((contact_id) => ({
       campaign_id: campaign.id,
       contact_id,
+      status: 'enrolled',
     }))
 
     const BATCH = 100
@@ -219,7 +221,8 @@ export default function NewCampaignPage() {
       const batch = contactRows.slice(i, i + BATCH)
       const { error } = await supabase.from('campaign_contacts').insert(batch)
       if (error) {
-        toast.error(`Saved campaign but failed to link some contacts.`)
+        console.error('Campaign contacts insert failed:', error)
+        toast.error(`Saved campaign but failed to link some contacts: ${error.message}`)
         break
       }
     }
