@@ -187,7 +187,7 @@ export default function SettingsPage() {
 
     // Determine deletes, updates, inserts
     const currentIds = new Set(stages.filter((s) => !s.id.startsWith('new-')).map((s) => s.id))
-    const toDelete = [...existingIds].filter((id) => !currentIds.has(id))
+    const toDelete = Array.from(existingIds).filter((id) => !currentIds.has(id))
 
     let hasError = false
 

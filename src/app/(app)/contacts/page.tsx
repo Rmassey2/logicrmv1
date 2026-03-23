@@ -83,7 +83,7 @@ export default function ContactsPage() {
     }
 
     const header = EXPORT_COLUMNS.join(',')
-    const csvRows = data.map((row: Record<string, string | null>) =>
+    const csvRows = (data as unknown as Record<string, string | null>[]).map((row) =>
       EXPORT_COLUMNS.map((col) => {
         const val = row[col] ?? ''
         return val.includes(',') || val.includes('"') || val.includes('\n')
