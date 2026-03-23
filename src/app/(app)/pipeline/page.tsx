@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import toast from 'react-hot-toast'
 import {
   DndContext,
@@ -88,7 +89,7 @@ function LeadCard({ lead, isDragOverlay }: { lead: Lead; isDragOverlay?: boolean
         >
           <GripVertical className="w-4 h-4" />
         </div>
-        <div className="min-w-0 flex-1">
+        <Link href={`/pipeline/${lead.id}`} className="min-w-0 flex-1" onClick={e => { if (isDragging) e.preventDefault() }}>
           <p className="text-sm font-medium text-white truncate">{lead.title}</p>
           {contactName && (
             <p className="text-xs text-blue-300/60 mt-0.5 truncate">{contactName}</p>
@@ -101,7 +102,7 @@ function LeadCard({ lead, isDragOverlay }: { lead: Lead; isDragOverlay?: boolean
               ${lead.value.toLocaleString()}
             </p>
           )}
-        </div>
+        </Link>
       </div>
     </div>
   )
