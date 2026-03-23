@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
@@ -15,6 +15,10 @@ import {
   Users,
   Eye,
   MessageSquare,
+  Rocket,
+  Pause,
+  RefreshCw,
+  Trash2,
 } from 'lucide-react'
 
 const supabase = createClient(
@@ -28,6 +32,7 @@ interface Campaign {
   subject: string
   body: string | null
   status: string | null
+  instantly_campaign_id: string | null
   recipient_count: number | null
   sent_count: number | null
   open_count: number | null
@@ -45,10 +50,21 @@ interface EnrolledContact {
   status: string | null
 }
 
-const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: typeof FileEdit }> = {
-  draft:     { label: 'Draft',     cls: 'bg-blue-500/10 text-blue-400',     icon: FileEdit },
-  active:    { label: 'Active',    cls: 'bg-yellow-500/10 text-yellow-400', icon: Send },
+const CAMPAIGN_STATUS_CONFIG: Record<string, { label: string; cls: string; icon: typeof FileEdit }> = {
+  draft:     { label: 'Draft',     cls: 'bg-blue-500/10 text-blue-400',       icon: FileEdit },
+  active:    { label: 'Active',    cls: 'bg-yellow-500/10 text-yellow-400',   icon: Send },
+  paused:    { label: 'Paused',    cls: 'bg-orange-500/10 text-orange-400',   icon: Pause },
   completed: { label: 'Completed', cls: 'bg-emerald-500/10 text-emerald-400', icon: CheckCircle2 },
+}
+
+const CONTACT_STATUS_STYLES: Record<string, string> = {
+  enrolled:      'bg-white/5 text-blue-300/50',
+  sent:          'bg-blue-500/10 text-blue-400',
+  opened:        'bg-yellow-500/10 text-yellow-400',
+  replied:       'bg-emerald-500/10 text-emerald-400',
+  converted:     'bg-purple-500/10 text-purple-400',
+  bounced:       'bg-red-500/10 text-red-400',
+  unsubscribed:  'bg-red-500/10 text-red-400',
 }
 
 function formatDate(iso: string) {
@@ -63,63 +79,154 @@ export default function CampaignDetailPage() {
   const [loading, setLoading] = useState(true)
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [contacts, setContacts] = useState<EnrolledContact[]>([])
+  const [launching, setLaunching] = useState(false)
+  const [pausing, setPausing] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/auth/login'); return }
+  const loadData = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { router.push('/auth/login'); return }
 
-      // Fetch campaign
-      const { data: camp, error } = await supabase
-        .from('email_campaigns')
-        .select('*')
-        .eq('id', id)
-        .single()
+    const { data: camp, error } = await supabase
+      .from('email_campaigns')
+      .select('*')
+      .eq('id', id)
+      .single()
 
-      if (error || !camp) {
-        toast.error('Campaign not found')
-        router.push('/campaigns')
-        return
-      }
-      setCampaign(camp as Campaign)
-
-      // Fetch enrolled contacts via campaign_contacts join
-      const { data: enrollments } = await supabase
-        .from('campaign_contacts')
-        .select('id, contact_id, status')
-        .eq('campaign_id', id)
-
-      if (enrollments && enrollments.length > 0) {
-        const contactIds = enrollments.map(e => e.contact_id)
-        const { data: contactData } = await supabase
-          .from('contacts')
-          .select('id, first_name, last_name, company, email')
-          .in('id', contactIds)
-
-        const contactMap = new Map(
-          (contactData ?? []).map(c => [c.id, c])
-        )
-
-        setContacts(
-          enrollments.map(e => {
-            const c = contactMap.get(e.contact_id)
-            return {
-              id: e.id,
-              contact_id: e.contact_id,
-              first_name: c?.first_name ?? null,
-              last_name: c?.last_name ?? null,
-              company: c?.company ?? null,
-              email: c?.email ?? null,
-              status: e.status ?? 'enrolled',
-            }
-          })
-        )
-      }
-
-      setLoading(false)
+    if (error || !camp) {
+      toast.error('Campaign not found')
+      router.push('/campaigns')
+      return
     }
-    load()
+    setCampaign(camp as Campaign)
+
+    const { data: enrollments } = await supabase
+      .from('campaign_contacts')
+      .select('id, contact_id, status')
+      .eq('campaign_id', id)
+
+    if (enrollments && enrollments.length > 0) {
+      const contactIds = enrollments.map(e => e.contact_id)
+      const { data: contactData } = await supabase
+        .from('contacts')
+        .select('id, first_name, last_name, company, email')
+        .in('id', contactIds)
+
+      const contactMap = new Map(
+        (contactData ?? []).map(c => [c.id, c])
+      )
+
+      setContacts(
+        enrollments.map(e => {
+          const c = contactMap.get(e.contact_id)
+          return {
+            id: e.id,
+            contact_id: e.contact_id,
+            first_name: c?.first_name ?? null,
+            last_name: c?.last_name ?? null,
+            company: c?.company ?? null,
+            email: c?.email ?? null,
+            status: e.status ?? 'enrolled',
+          }
+        })
+      )
+    } else {
+      setContacts([])
+    }
+
+    setLoading(false)
   }, [id, router])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  // ── Launch campaign ────────────────────────────────────────────────────────
+
+  async function handleLaunch() {
+    setLaunching(true)
+    try {
+      const res = await fetch('/api/campaigns/launch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaign_id: id }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        console.error('Launch failed:', data)
+        toast.error(data.error ?? 'Launch failed')
+      } else {
+        toast.success(`Campaign launched! ${data.leads_added} leads added to Instantly.`)
+        loadData()
+      }
+    } catch (err) {
+      console.error('Launch error:', err)
+      toast.error('Launch failed')
+    }
+    setLaunching(false)
+  }
+
+  // ── Pause campaign ─────────────────────────────────────────────────────────
+
+  async function handlePause() {
+    setPausing(true)
+    try {
+      const res = await fetch('/api/campaigns/launch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaign_id: id, action: 'pause' }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? 'Pause failed')
+      } else {
+        toast.success('Campaign paused')
+        loadData()
+      }
+    } catch {
+      toast.error('Pause failed')
+    }
+    setPausing(false)
+  }
+
+  // ── Sync stats ─────────────────────────────────────────────────────────────
+
+  async function handleSync() {
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/campaigns/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaign_id: id }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? 'Sync failed')
+      } else {
+        toast.success('Stats synced from Instantly')
+        loadData()
+      }
+    } catch {
+      toast.error('Sync failed')
+    }
+    setSyncing(false)
+  }
+
+  // ── Remove contact ─────────────────────────────────────────────────────────
+
+  async function handleRemoveContact(enrollmentId: string) {
+    const { error } = await supabase
+      .from('campaign_contacts')
+      .delete()
+      .eq('id', enrollmentId)
+
+    if (error) {
+      toast.error('Failed to remove contact')
+    } else {
+      setContacts(prev => prev.filter(c => c.id !== enrollmentId))
+      toast.success('Contact removed')
+    }
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -131,8 +238,11 @@ export default function CampaignDetailPage() {
 
   if (!campaign) return null
 
-  const cfg = STATUS_CONFIG[campaign.status ?? 'draft'] ?? STATUS_CONFIG.draft
+  const cfg = CAMPAIGN_STATUS_CONFIG[campaign.status ?? 'draft'] ?? CAMPAIGN_STATUS_CONFIG.draft
   const StatusIcon = cfg.icon
+  const isDraft = campaign.status === 'draft' || !campaign.status
+  const isActive = campaign.status === 'active'
+  const hasInstantly = !!campaign.instantly_campaign_id
 
   const recipientCount = campaign.recipient_count ?? contacts.length
   const sentCount = campaign.sent_count ?? 0
@@ -171,6 +281,41 @@ export default function CampaignDetailPage() {
               </span>
               <span className="text-xs text-blue-300/40">Created {formatDate(campaign.created_at)}</span>
             </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 shrink-0">
+            {isDraft && contacts.length > 0 && (
+              <button
+                onClick={handleLaunch}
+                disabled={launching}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 disabled:opacity-60 transition-colors"
+                style={{ backgroundColor: '#d4930e' }}
+              >
+                <Rocket className="w-4 h-4" />
+                {launching ? 'Launching...' : 'Launch Campaign'}
+              </button>
+            )}
+            {isActive && (
+              <button
+                onClick={handlePause}
+                disabled={pausing}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm text-orange-400 border border-orange-500/30 hover:bg-orange-500/10 disabled:opacity-60 transition-colors"
+              >
+                <Pause className="w-4 h-4" />
+                {pausing ? 'Pausing...' : 'Pause'}
+              </button>
+            )}
+            {hasInstantly && (
+              <button
+                onClick={handleSync}
+                disabled={syncing}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm text-blue-300 border border-white/10 hover:text-white hover:border-white/20 disabled:opacity-60 transition-colors"
+              >
+                <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'Syncing...' : 'Sync Stats'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -227,13 +372,15 @@ export default function CampaignDetailPage() {
                   <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-blue-300">Company</th>
                   <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-blue-300 hidden sm:table-cell">Email</th>
                   <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-blue-300">Status</th>
+                  <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-blue-300 w-10"></th>
                 </tr>
               </thead>
               <tbody>
                 {contacts.map(c => {
                   const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || 'Unnamed'
+                  const statusStyle = CONTACT_STATUS_STYLES[c.status ?? 'enrolled'] ?? CONTACT_STATUS_STYLES.enrolled
                   return (
-                    <tr key={c.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                    <tr key={c.id} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
                       <td className="px-5 py-3.5 text-sm whitespace-nowrap">
                         <Link
                           href={`/contacts/${c.contact_id}`}
@@ -250,15 +397,18 @@ export default function CampaignDetailPage() {
                         {c.email || '\u2014'}
                       </td>
                       <td className="px-5 py-3.5 whitespace-nowrap">
-                        <span className={`text-xs px-2 py-0.5 rounded font-semibold capitalize ${
-                          c.status === 'sent'    ? 'bg-emerald-500/10 text-emerald-400' :
-                          c.status === 'opened'  ? 'bg-blue-500/10 text-blue-400' :
-                          c.status === 'replied'  ? 'bg-yellow-500/10 text-yellow-400' :
-                          c.status === 'bounced' ? 'bg-red-500/10 text-red-400' :
-                          'bg-white/5 text-blue-300/50'
-                        }`}>
+                        <span className={`text-xs px-2 py-0.5 rounded font-semibold capitalize ${statusStyle}`}>
                           {c.status ?? 'enrolled'}
                         </span>
+                      </td>
+                      <td className="px-5 py-3.5 whitespace-nowrap">
+                        <button
+                          onClick={() => handleRemoveContact(c.id)}
+                          className="text-blue-300/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                          title="Remove from campaign"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   )
