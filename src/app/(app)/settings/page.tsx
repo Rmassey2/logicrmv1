@@ -10,6 +10,9 @@ import {
   Trash2,
   AlertTriangle,
   LogOut,
+  UserPlus,
+  Shield,
+  User,
 } from 'lucide-react'
 
 const supabase = createClient(
@@ -21,6 +24,15 @@ interface Stage {
   id: string
   name: string
   position: number
+}
+
+interface TeamMember {
+  user_id: string
+  email: string
+  role: string
+  contacts_count: number
+  deals_count: number
+  campaigns_count: number
 }
 
 const COMPANY_KEYS = ['company_name', 'company_phone', 'company_website', 'company_address'] as const
@@ -66,6 +78,14 @@ export default function SettingsPage() {
   const [stages, setStages] = useState<Stage[]>([])
   const [savingStages, setSavingStages] = useState(false)
 
+  // Team
+  const [orgName, setOrgName] = useState('')
+  const [orgId, setOrgId] = useState<string | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [members, setMembers] = useState<TeamMember[]>([])
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviting, setInviting] = useState(false)
+
   // Danger zone
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -101,6 +121,70 @@ export default function SettingsPage() {
       .eq('user_id', user.id)
       .order('position', { ascending: true })
     setStages(stageData ?? [])
+
+    // Organization & team
+    const { data: membership } = await supabase
+      .from('organization_members')
+      .select('org_id, role')
+      .eq('user_id', user.id)
+      .limit(1)
+      .maybeSingle()
+
+    if (membership) {
+      setOrgId(membership.org_id)
+      setIsAdmin(membership.role === 'admin')
+
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', membership.org_id)
+        .single()
+      setOrgName(org?.name ?? '')
+
+      // Load all members
+      const { data: allMembers } = await supabase
+        .from('organization_members')
+        .select('user_id, role')
+        .eq('org_id', membership.org_id)
+
+      if (allMembers) {
+        const memberUserIds = allMembers.map((m) => m.user_id)
+
+        // Fetch stats for each member
+        const [contactsCounts, dealsCounts, campaignsCounts] = await Promise.all([
+          supabase.from('contacts').select('user_id', { count: 'exact' }).in('user_id', memberUserIds),
+          supabase.from('leads').select('user_id', { count: 'exact' }).in('user_id', memberUserIds),
+          supabase.from('email_campaigns').select('user_id', { count: 'exact' }).in('user_id', memberUserIds),
+        ])
+
+        // Count per user
+        const countBy = (data: { user_id: string }[] | null) => {
+          const map = new Map<string, number>()
+          for (const row of data ?? []) {
+            map.set(row.user_id, (map.get(row.user_id) ?? 0) + 1)
+          }
+          return map
+        }
+
+        const cMap = countBy(contactsCounts.data as { user_id: string }[] | null)
+        const dMap = countBy(dealsCounts.data as { user_id: string }[] | null)
+        const campMap = countBy(campaignsCounts.data as { user_id: string }[] | null)
+
+        const emailMap = new Map<string, string>()
+        emailMap.set(user.id, user.email ?? '')
+
+        setMembers(
+          allMembers.map((m) => ({
+            user_id: m.user_id,
+            email: emailMap.get(m.user_id) ?? m.user_id.slice(0, 8) + '...',
+            role: m.role,
+            contacts_count: cMap.get(m.user_id) ?? 0,
+            deals_count: dMap.get(m.user_id) ?? 0,
+            campaigns_count: campMap.get(m.user_id) ?? 0,
+          }))
+        )
+      }
+    }
 
     setLoading(false)
   }, [])
@@ -142,6 +226,40 @@ export default function SettingsPage() {
 
     toast.success('Company info saved.')
     setSavingCompany(false)
+  }
+
+  // ── Team Invite ─────────────────────────────────────────────────────────
+
+  async function handleInvite() {
+    if (!inviteEmail.trim() || !orgId) return
+    setInviting(true)
+
+    // Send a magic link invite via Supabase auth
+    const { error: inviteError } = await supabase.auth.signInWithOtp({
+      email: inviteEmail.trim(),
+      options: { shouldCreateUser: true },
+    })
+
+    if (inviteError) {
+      console.error('Invite failed:', inviteError)
+      toast.error(`Invite failed: ${inviteError.message}`)
+      setInviting(false)
+      return
+    }
+
+    // Store a pending invite record so the signup flow can match them to this org
+    const { error: inviteRecordError } = await supabase.from('user_settings').upsert(
+      { user_id: orgId, key: `invite:${inviteEmail.trim().toLowerCase()}`, value: 'rep' },
+      { onConflict: 'user_id,key' }
+    )
+    if (inviteRecordError) {
+      console.error('Invite record failed:', inviteRecordError)
+    }
+
+    toast.success(`Invite sent to ${inviteEmail}`)
+    setInviteEmail('')
+    setInviting(false)
+    loadData()
   }
 
   // ── Pipeline Stages ──────────────────────────────────────────────────────
@@ -349,6 +467,80 @@ export default function SettingsPage() {
             </button>
           </div>
         </SectionCard>
+
+        {/* ── Team ───────────────────────────────────────────────────────── */}
+        {orgId && (
+          <SectionCard title={`Team — ${orgName}`}>
+            <div className="space-y-4">
+              {/* Members list */}
+              <div className="space-y-2">
+                {members.map((m) => (
+                  <div
+                    key={m.user_id}
+                    className="flex items-center gap-3 bg-white/[0.03] border border-white/10 rounded-lg px-4 py-3"
+                  >
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: m.role === 'admin' ? 'rgba(212,147,14,0.15)' : 'rgba(96,165,250,0.1)' }}>
+                      {m.role === 'admin' ? (
+                        <Shield className="w-4 h-4" style={{ color: '#d4930e' }} />
+                      ) : (
+                        <User className="w-4 h-4 text-blue-400" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-white font-medium truncate">{m.email}</p>
+                      <span className={`text-[10px] font-semibold uppercase ${
+                        m.role === 'admin' ? 'text-yellow-400' : 'text-blue-400'
+                      }`}>
+                        {m.role}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 shrink-0 text-center">
+                      <div>
+                        <p className="text-sm font-bold text-white">{m.contacts_count}</p>
+                        <p className="text-[9px] uppercase tracking-wide text-blue-300/40">Contacts</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white">{m.deals_count}</p>
+                        <p className="text-[9px] uppercase tracking-wide text-blue-300/40">Deals</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white">{m.campaigns_count}</p>
+                        <p className="text-[9px] uppercase tracking-wide text-blue-300/40">Campaigns</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Invite */}
+              {isAdmin && (
+                <div className="pt-2">
+                  <label className={labelClass}>Invite Team Member</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      placeholder="teammate@company.com"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
+                      className={inputClass}
+                    />
+                    <button
+                      onClick={handleInvite}
+                      disabled={inviting || !inviteEmail.trim()}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 disabled:opacity-60 transition-colors shrink-0"
+                      style={{ backgroundColor: '#d4930e' }}
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      {inviting ? 'Sending...' : 'Invite'}
+                    </button>
+                  </div>
+                  <p className="text-blue-300/40 text-xs mt-1.5">They&apos;ll receive a login link and be added as a rep.</p>
+                </div>
+              )}
+            </div>
+          </SectionCard>
+        )}
 
         {/* ── Pipeline Stages ─────────────────────────────────────────────── */}
         <SectionCard title="Pipeline Stages">

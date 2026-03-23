@@ -20,13 +20,44 @@ export default function LoginPage() {
   const handleSubmit = async () => {
     setLoading(true)
     setError('')
+
     if (mode === 'login') {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) { setError(error.message); setLoading(false); return }
     } else {
-      const { error } = await supabase.auth.signUp({ email, password })
-      if (error) { setError(error.message); setLoading(false); return }
+      // Sign up
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password })
+      if (signUpError) { setError(signUpError.message); setLoading(false); return }
+
+      const newUser = signUpData.user
+      if (newUser) {
+        // Check if user was invited to an org (has pending membership)
+        const { data: membership } = await supabase
+          .from('organization_members')
+          .select('id')
+          .eq('user_id', newUser.id)
+          .limit(1)
+          .maybeSingle()
+
+        if (!membership) {
+          // No invite — create a new org and make them admin
+          const { data: org } = await supabase
+            .from('organizations')
+            .insert({ name: `${email.split('@')[0]}'s Organization`, owner_id: newUser.id })
+            .select('id')
+            .single()
+
+          if (org) {
+            await supabase.from('organization_members').insert({
+              org_id: org.id,
+              user_id: newUser.id,
+              role: 'admin',
+            })
+          }
+        }
+      }
     }
+
     router.push('/dashboard')
     router.refresh()
   }

@@ -3,31 +3,54 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
-import { LayoutDashboard, Users, TrendingUp, Mail, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, Users, TrendingUp, Mail, Settings, UsersRound, LogOut } from 'lucide-react'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-const navItems = [
+const baseNavItems = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Contacts', href: '/contacts', icon: Users },
   { label: 'Pipeline', href: '/pipeline', icon: TrendingUp },
   { label: 'Campaigns', href: '/campaigns', icon: Mail },
-  { label: 'Settings', href: '/settings', icon: Settings },
 ]
+
+const adminNavItem = { label: 'Team', href: '/admin', icon: UsersRound }
+const settingsNavItem = { label: 'Settings', href: '/settings', icon: Settings }
 
 export default function Sidebar() {
   const router = useRouter()
   const pathname = usePathname()
   const [userEmail, setUserEmail] = useState('')
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setUserEmail(user.email ?? '')
-    })
+    async function init() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      setUserEmail(user.email ?? '')
+
+      // Check if user is an admin in any org
+      const { data: membership } = await supabase
+        .from('organization_members')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'admin')
+        .limit(1)
+        .maybeSingle()
+
+      setIsAdmin(!!membership)
+    }
+    init()
   }, [])
+
+  const navItems = [
+    ...baseNavItems,
+    ...(isAdmin ? [adminNavItem] : []),
+    settingsNavItem,
+  ]
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
