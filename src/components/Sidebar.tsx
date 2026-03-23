@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
-import { LayoutDashboard, Users, Building2, TrendingUp, Mail, Sparkles, ClipboardList, Settings, UsersRound, LogOut } from 'lucide-react'
+import { LayoutDashboard, Users, Building2, TrendingUp, Mail, Sparkles, CheckSquare, ClipboardList, Settings, UsersRound, LogOut } from 'lucide-react'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,6 +17,7 @@ const baseNavItems = [
   { label: 'Pipeline', href: '/pipeline', icon: TrendingUp },
   { label: 'Campaigns', href: '/campaigns', icon: Mail },
   { label: 'AI Sequence', href: '/campaigns/ai-sequence', icon: Sparkles },
+  { label: 'Tasks', href: '/tasks', icon: CheckSquare },
   { label: 'Activities', href: '/activities', icon: ClipboardList },
 ]
 
@@ -28,6 +29,7 @@ export default function Sidebar() {
   const pathname = usePathname()
   const [userEmail, setUserEmail] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
+  const [urgentTaskCount, setUrgentTaskCount] = useState(0)
 
   useEffect(() => {
     async function init() {
@@ -45,6 +47,18 @@ export default function Sidebar() {
         .maybeSingle()
 
       setIsAdmin(!!membership)
+
+      // Count overdue + due today tasks
+      const todayStr = new Date().toISOString().split('T')[0]
+      const { count } = await supabase
+        .from('activities')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('type', 'task')
+        .eq('completed', false)
+        .lte('due_date', todayStr)
+
+      setUrgentTaskCount(count ?? 0)
     }
     init()
   }, [])
@@ -83,6 +97,7 @@ export default function Sidebar() {
         {navItems.map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + '/')
+          const showBadge = item.href === '/tasks' && urgentTaskCount > 0
           return (
             <button
               key={item.href}
@@ -99,6 +114,11 @@ export default function Sidebar() {
                 style={isActive ? { color: '#d4930e' } : undefined}
               />
               {item.label}
+              {showBadge && (
+                <span className="ml-auto text-[10px] font-bold bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center">
+                  {urgentTaskCount > 9 ? '9+' : urgentTaskCount}
+                </span>
+              )}
             </button>
           )
         })}
