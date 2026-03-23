@@ -58,13 +58,40 @@ export default function NewContactPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth/login'); return }
 
+    // Auto-link or create company
+    let companyId: string | null = null
+    const companyName = form.company.trim()
+    if (companyName) {
+      // Check if company already exists
+      const { data: existing } = await supabase
+        .from('companies')
+        .select('id')
+        .eq('user_id', user.id)
+        .ilike('name', companyName)
+        .limit(1)
+        .maybeSingle()
+
+      if (existing) {
+        companyId = existing.id
+      } else {
+        // Create new company
+        const { data: newComp } = await supabase
+          .from('companies')
+          .insert({ user_id: user.id, name: companyName })
+          .select('id')
+          .single()
+        companyId = newComp?.id ?? null
+      }
+    }
+
     const { error } = await supabase.from('contacts').insert({
       user_id: user.id,
       first_name: form.first_name.trim() || null,
       last_name: form.last_name.trim() || null,
       email: form.email.trim() || null,
       phone: form.phone.trim() || null,
-      company: form.company.trim() || null,
+      company: companyName || null,
+      company_id: companyId,
       title: form.title.trim() || null,
       role: form.role || null,
       city: form.city.trim() || null,

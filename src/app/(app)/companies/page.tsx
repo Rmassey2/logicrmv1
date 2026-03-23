@@ -6,7 +6,8 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Search, Plus, Building2, Users, TrendingUp } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { Search, Plus, Building2, Users, TrendingUp, RefreshCw } from 'lucide-react'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,11 +29,11 @@ export default function CompaniesPage() {
   const [loading, setLoading] = useState(true)
   const [companies, setCompanies] = useState<Company[]>([])
   const [search, setSearch] = useState('')
+  const [syncing, setSyncing] = useState(false)
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+  async function loadCompanies() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
 
       // Fetch companies
       const { data: comps } = await supabase
@@ -77,9 +78,33 @@ export default function CompaniesPage() {
 
       setCompanies(enriched)
       setLoading(false)
+  }
+
+  useEffect(() => { loadCompanies() }, [])
+
+  async function handleSync() {
+    setSyncing(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/companies/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? 'Sync failed')
+      } else {
+        toast.success(`${data.companies_created} companies created, ${data.contacts_linked} contacts linked`)
+        loadCompanies()
+      }
+    } catch {
+      toast.error('Sync failed')
     }
-    load()
-  }, [])
+    setSyncing(false)
+  }
 
   const filtered = search.trim()
     ? companies.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -92,14 +117,24 @@ export default function CompaniesPage() {
           <h2 className="text-2xl font-bold text-white">Companies</h2>
           <p className="text-blue-300 text-sm mt-1">{companies.length} compan{companies.length !== 1 ? 'ies' : 'y'}</p>
         </div>
-        <button
-          onClick={() => router.push('/companies/new')}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 transition-colors"
-          style={{ backgroundColor: '#d4930e' }}
-        >
-          <Plus className="w-4 h-4" />
-          Add Company
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm text-blue-300 border border-white/10 hover:text-white hover:border-white/20 disabled:opacity-40 transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync Companies'}
+          </button>
+          <button
+            onClick={() => router.push('/companies/new')}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 transition-colors"
+            style={{ backgroundColor: '#d4930e' }}
+          >
+            <Plus className="w-4 h-4" />
+            Add Company
+          </button>
+        </div>
       </div>
 
       {/* Search */}
