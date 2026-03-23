@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import toast from 'react-hot-toast'
 import { Search, Plus, ChevronLeft, ChevronRight, Download, Trash2 } from 'lucide-react'
 
@@ -240,10 +241,13 @@ export default function ContactsPage() {
                   return (
                     <tr
                       key={c.id}
-                      onClick={() => router.push(`/contacts/${c.id}`)}
-                      className="border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors"
+                      className="border-b border-white/5 hover:bg-white/5 transition-colors"
                     >
-                      <td className="px-5 py-3.5 text-sm font-medium text-white whitespace-nowrap">{name}</td>
+                      <td className="px-5 py-3.5 text-sm font-medium whitespace-nowrap">
+                        <Link href={`/contacts/${c.id}`} className="text-white hover:underline" style={{ color: '#d4930e' }}>
+                          {name}
+                        </Link>
+                      </td>
                       <td className="px-5 py-3.5 text-sm text-blue-200 whitespace-nowrap">{c.company || '\u2014'}</td>
                       <td className="px-5 py-3.5 text-sm text-blue-200 whitespace-nowrap hidden md:table-cell">{c.title || '\u2014'}</td>
                       <td className="px-5 py-3.5 text-sm text-blue-200 whitespace-nowrap hidden lg:table-cell">{c.phone || '\u2014'}</td>
