@@ -30,6 +30,7 @@ import {
   Copy,
   Check,
   MessageSquare,
+  FileText,
 } from 'lucide-react'
 
 const supabase = createClient(
@@ -515,6 +516,13 @@ export default function ContactDetailPage() {
                 >
                   <MessageSquare size={14} /> {callPrepLoading ? 'Prepping...' : 'Call Prep'}
                 </button>
+                <Link
+                  href={`/contacts/${id}/post-call`}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.4)', backgroundColor: 'rgba(212,147,14,0.08)' }}
+                >
+                  <FileText size={14} /> Post-Call
+                </Link>
               </div>
             )}
           </div>
