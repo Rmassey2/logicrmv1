@@ -15,7 +15,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "LogiCRM — Maco Logistics",
+  title: "LogiCRM — Bid Genie AI",
   description: "Freight CRM built for carriers and freight brokers",
 };
 

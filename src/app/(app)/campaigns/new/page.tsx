@@ -303,7 +303,7 @@ export default function NewCampaignPage() {
             <label className={labelClass}>Subject Line</label>
             <input
               type="text"
-              placeholder="Maco Logistics - Let's partner on your next lane"
+              placeholder="Bid Genie AI - Let's partner on your next lane"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               className={inputClass}
@@ -455,7 +455,7 @@ export default function NewCampaignPage() {
               <textarea
                 id="campaign-body"
                 rows={14}
-                placeholder={"Hi {{first_name}},\n\nI wanted to reach out about potential freight partnerships with {{company}}...\n\nBest regards,\nMaco Logistics"}
+                placeholder={"Hi {{first_name}},\n\nI wanted to reach out about potential freight partnerships with {{company}}...\n\nBest regards,\nBid Genie AI"}
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 className={`${inputClass} resize-none font-mono`}

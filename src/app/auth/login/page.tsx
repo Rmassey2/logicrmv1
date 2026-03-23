@@ -108,7 +108,7 @@ export default function LoginPage() {
             </button>
           </div>
         </div>
-        <p className="text-center text-blue-400 text-xs mt-6">2026 Maco Logistics · LogiCRM</p>
+        <p className="text-center text-blue-400 text-xs mt-6">2026 Bid Genie AI · LogiCRM</p>
       </div>
     </div>
   )

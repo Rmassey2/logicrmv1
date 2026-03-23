@@ -285,7 +285,7 @@ export default function ContactsPage() {
 
       {/* Footer */}
       <p className="text-center text-blue-400/50 text-xs mt-16">
-        2026 Maco Logistics · LogiCRM
+        2026 Bid Genie AI · LogiCRM
       </p>
     </div>
   )

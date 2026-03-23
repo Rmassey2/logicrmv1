@@ -71,7 +71,7 @@ export default function Sidebar() {
           Logi<span style={{ color: '#d4930e' }}>CRM</span>
         </h1>
         <p className="text-blue-400/60 text-[10px] mt-0.5 uppercase tracking-widest">
-          Maco Logistics
+          Bid Genie AI
         </p>
       </div>
 

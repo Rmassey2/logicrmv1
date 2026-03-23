@@ -420,7 +420,7 @@ export default function SettingsPage() {
                 <label className={labelClass}>Company Name</label>
                 <input
                   type="text"
-                  placeholder="Maco Logistics"
+                  placeholder="Bid Genie AI"
                   value={company.company_name}
                   onChange={(e) => setCompany((p) => ({ ...p, company_name: e.target.value }))}
                   className={inputClass}
@@ -669,7 +669,7 @@ export default function SettingsPage() {
 
       {/* Footer */}
       <p className="text-center text-blue-400/50 text-xs mt-16">
-        2026 Maco Logistics · LogiCRM
+        2026 Bid Genie AI · LogiCRM
       </p>
     </div>
   )
