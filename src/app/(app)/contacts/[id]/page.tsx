@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 import toast from 'react-hot-toast'
 import {
@@ -130,6 +131,9 @@ export default function ContactDetailPage() {
   const [savingActivity, setSavingActivity] = useState(false)
   const [savingContact, setSavingContact]   = useState(false)
 
+  // Company link
+  const [companyId, setCompanyId] = useState<string | null>(null)
+
   // AI Email Writer
   const [showEmailModal, setShowEmailModal] = useState(false)
   const [emailTouch, setEmailTouch] = useState(1)
@@ -176,6 +180,19 @@ export default function ContactDetailPage() {
       setEditData(contactRes.data)
       setActivities(activitiesRes.data ?? [])
       setLeads(leadsRes.data ?? [])
+
+      // Look up company by name
+      if (contactRes.data.company) {
+        const { data: compMatch } = await supabase
+          .from('companies')
+          .select('id')
+          .eq('user_id', user.id)
+          .ilike('name', contactRes.data.company)
+          .limit(1)
+          .maybeSingle()
+        setCompanyId(compMatch?.id ?? null)
+      }
+
       setLoading(false)
     }
     load()
@@ -569,7 +586,13 @@ export default function ContactDetailPage() {
               )}
               {contact.company && (
                 <InfoField icon={<Building2 size={14} />} label="Company">
-                  {contact.company}
+                  <Link
+                    href={companyId ? `/companies/${companyId}` : `/companies/new?name=${encodeURIComponent(contact.company)}`}
+                    className="hover:underline"
+                    style={{ color: '#d4930e' }}
+                  >
+                    {contact.company}
+                  </Link>
                 </InfoField>
               )}
               {contact.notes && (
