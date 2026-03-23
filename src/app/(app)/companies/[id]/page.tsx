@@ -10,7 +10,7 @@ import toast from 'react-hot-toast'
 import {
   ArrowLeft, Edit2, Save, X, ExternalLink, Users, TrendingUp,
   Clock, PhoneCall, MailOpen, StickyNote, CalendarDays, CheckSquare,
-  Sparkles,
+  Sparkles, Loader2, RefreshCw, Building2, Truck, Newspaper, Target,
 } from 'lucide-react'
 
 const supabase = createClient(
@@ -53,6 +53,12 @@ export default function CompanyDetailPage() {
   const [editing, setEditing] = useState(false)
   const [editData, setEditData] = useState<Partial<Company>>({})
   const [saving, setSaving] = useState(false)
+
+  // AI Intel
+  const [showIntel, setShowIntel] = useState(false)
+  const [intelLoading, setIntelLoading] = useState(false)
+  const [intel, setIntel] = useState<{ overview: string; freightProfile: string; recentNews: string; salesAngle: string } | null>(null)
+  const [savingIntel, setSavingIntel] = useState(false)
 
   const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -136,6 +142,58 @@ export default function CompanyDetailPage() {
     setSaving(false)
   }
 
+  // ── AI Intel ──────────────────────────────────────────────────────────────
+
+  async function handleGetIntel() {
+    if (!company) return
+    setShowIntel(true)
+    setIntelLoading(true)
+    setIntel(null)
+    try {
+      const location = [company.city, company.state].filter(Boolean).join(', ')
+      const res = await fetch('/api/ai/company-intel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyName: company.name,
+          industry: company.industry,
+          location,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? 'Intel research failed')
+      } else {
+        setIntel(data.intel)
+      }
+    } catch {
+      toast.error('Intel research failed')
+    }
+    setIntelLoading(false)
+  }
+
+  async function handleSaveIntel() {
+    if (!company || !intel) return
+    setSavingIntel(true)
+    const intelText = `[AI Intel - ${new Date().toLocaleDateString()}]\n\nOVERVIEW: ${intel.overview}\n\nFREIGHT PROFILE: ${intel.freightProfile}\n\nRECENT NEWS: ${intel.recentNews}\n\nSALES ANGLE: ${intel.salesAngle}`
+    const existingNotes = company.notes ? `${company.notes}\n\n---\n\n` : ''
+    const newNotes = existingNotes + intelText
+
+    const { error } = await supabase
+      .from('companies')
+      .update({ notes: newNotes })
+      .eq('id', company.id)
+
+    if (error) {
+      toast.error('Failed to save intel')
+    } else {
+      setCompany({ ...company, notes: newNotes })
+      setEditData(prev => ({ ...prev, notes: newNotes }))
+      toast.success('Intel saved to company notes')
+    }
+    setSavingIntel(false)
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center h-full min-h-screen"><p className="text-blue-300 text-sm">Loading company...</p></div>
   }
@@ -195,7 +253,14 @@ export default function CompanyDetailPage() {
             ) : (
               <>
                 <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-blue-300 border border-white/10 hover:text-white hover:border-white/20 transition-colors"><Edit2 className="w-4 h-4" /> Edit</button>
-                <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors" style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.4)', backgroundColor: 'rgba(212,147,14,0.08)' }}><Sparkles className="w-4 h-4" /> AI Intel</button>
+                <button
+                  onClick={handleGetIntel}
+                  disabled={intelLoading}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-60"
+                  style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.4)', backgroundColor: 'rgba(212,147,14,0.08)' }}
+                >
+                  <Sparkles className="w-4 h-4" /> {intelLoading ? 'Researching...' : 'AI Intel'}
+                </button>
               </>
             )}
           </div>
@@ -217,6 +282,84 @@ export default function CompanyDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* AI Intel Panel */}
+      {showIntel && (
+        <div className="mb-6 rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(212,147,14,0.3)', backgroundColor: 'rgba(212,147,14,0.04)' }}>
+          <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(212,147,14,0.15)' }}>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4" style={{ color: '#d4930e' }} />
+              <p className="text-sm font-semibold" style={{ color: '#d4930e' }}>AI Intelligence Brief</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {intel && (
+                <>
+                  <button
+                    onClick={handleSaveIntel}
+                    disabled={savingIntel}
+                    className="text-xs px-3 py-1 rounded-lg font-medium text-blue-300 border border-white/10 hover:text-white hover:border-white/20 disabled:opacity-40 transition-colors"
+                  >
+                    {savingIntel ? 'Saving...' : 'Save Intel'}
+                  </button>
+                  <button
+                    onClick={handleGetIntel}
+                    disabled={intelLoading}
+                    className="text-xs px-3 py-1 rounded-lg font-medium text-blue-300 border border-white/10 hover:text-white hover:border-white/20 disabled:opacity-40 transition-colors"
+                  >
+                    <RefreshCw className={`w-3 h-3 inline mr-1 ${intelLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </button>
+                </>
+              )}
+              <button onClick={() => setShowIntel(false)} className="text-blue-300/40 hover:text-white transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="p-5">
+            {intelLoading ? (
+              <div className="flex items-center gap-3 py-8 justify-center">
+                <Loader2 className="w-5 h-5 animate-spin" style={{ color: '#d4930e' }} />
+                <p className="text-sm text-blue-300/60">Researching {company.name}...</p>
+              </div>
+            ) : intel ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Building2 className="w-3.5 h-3.5" style={{ color: '#d4930e' }} />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50">Company Overview</p>
+                  </div>
+                  <p className="text-sm text-blue-200 leading-relaxed">{intel.overview}</p>
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Truck className="w-3.5 h-3.5" style={{ color: '#d4930e' }} />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50">Freight Profile</p>
+                  </div>
+                  <p className="text-sm text-blue-200 leading-relaxed">{intel.freightProfile}</p>
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Newspaper className="w-3.5 h-3.5" style={{ color: '#d4930e' }} />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50">Recent News</p>
+                  </div>
+                  <p className="text-sm text-blue-200 leading-relaxed">{intel.recentNews}</p>
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Target className="w-3.5 h-3.5" style={{ color: '#d4930e' }} />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50">Sales Angle</p>
+                  </div>
+                  <p className="text-sm text-blue-200 leading-relaxed">{intel.salesAngle}</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-blue-300/40 text-center py-6">No intel generated yet.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Contacts */}
