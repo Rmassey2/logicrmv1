@@ -285,7 +285,7 @@ export default function CampaignDetailPage() {
 
           {/* Action buttons */}
           <div className="flex items-center gap-2 shrink-0">
-            {isDraft && contacts.length > 0 && (
+            {isDraft && (
               <button
                 onClick={handleLaunch}
                 disabled={launching}
