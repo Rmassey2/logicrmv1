@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
-import { LayoutDashboard, Users, TrendingUp, Mail, ClipboardList, Settings, UsersRound, LogOut } from 'lucide-react'
+import { LayoutDashboard, Users, TrendingUp, Mail, Sparkles, ClipboardList, Settings, UsersRound, LogOut } from 'lucide-react'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,6 +15,7 @@ const baseNavItems = [
   { label: 'Contacts', href: '/contacts', icon: Users },
   { label: 'Pipeline', href: '/pipeline', icon: TrendingUp },
   { label: 'Campaigns', href: '/campaigns', icon: Mail },
+  { label: 'AI Sequence', href: '/campaigns/ai-sequence', icon: Sparkles },
   { label: 'Activities', href: '/activities', icon: ClipboardList },
 ]
 
