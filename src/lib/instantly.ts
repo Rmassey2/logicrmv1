@@ -98,6 +98,7 @@ export async function addLeadsToCampaign(
 export async function launchCampaign(campaignId: string) {
   return request(`/campaigns/${campaignId}/activate`, {
     method: 'POST',
+    body: JSON.stringify({ id: campaignId }),
   })
 }
 
