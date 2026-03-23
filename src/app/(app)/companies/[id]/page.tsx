@@ -37,6 +37,10 @@ const ACTIVITY_ICONS: Record<string, typeof PhoneCall> = {
   call: PhoneCall, email: MailOpen, note: StickyNote, meeting: CalendarDays, task: CheckSquare,
 }
 
+function stripCitations(text: string) {
+  return text.replace(/<cite[^>]*>([^<]*)<\/cite>/g, '$1')
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
@@ -175,7 +179,7 @@ export default function CompanyDetailPage() {
   async function handleSaveIntel() {
     if (!company || !intel) return
     setSavingIntel(true)
-    const intelText = `[AI Intel - ${new Date().toLocaleDateString()}]\n\nOVERVIEW: ${intel.overview}\n\nFREIGHT PROFILE: ${intel.freightProfile}\n\nRECENT NEWS: ${intel.recentNews}\n\nSALES ANGLE: ${intel.salesAngle}`
+    const intelText = `[AI Intel - ${new Date().toLocaleDateString()}]\n\nOVERVIEW: ${stripCitations(intel.overview)}\n\nFREIGHT PROFILE: ${stripCitations(intel.freightProfile)}\n\nRECENT NEWS: ${stripCitations(intel.recentNews)}\n\nSALES ANGLE: ${stripCitations(intel.salesAngle)}`
     const existingNotes = company.notes ? `${company.notes}\n\n---\n\n` : ''
     const newNotes = existingNotes + intelText
 
@@ -330,28 +334,28 @@ export default function CompanyDetailPage() {
                     <Building2 className="w-3.5 h-3.5" style={{ color: '#d4930e' }} />
                     <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50">Company Overview</p>
                   </div>
-                  <p className="text-sm text-blue-200 leading-relaxed">{intel.overview}</p>
+                  <p className="text-sm text-blue-200 leading-relaxed">{stripCitations(intel.overview)}</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
                     <Truck className="w-3.5 h-3.5" style={{ color: '#d4930e' }} />
                     <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50">Freight Profile</p>
                   </div>
-                  <p className="text-sm text-blue-200 leading-relaxed">{intel.freightProfile}</p>
+                  <p className="text-sm text-blue-200 leading-relaxed">{stripCitations(intel.freightProfile)}</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
                     <Newspaper className="w-3.5 h-3.5" style={{ color: '#d4930e' }} />
                     <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50">Recent News</p>
                   </div>
-                  <p className="text-sm text-blue-200 leading-relaxed">{intel.recentNews}</p>
+                  <p className="text-sm text-blue-200 leading-relaxed">{stripCitations(intel.recentNews)}</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
                     <Target className="w-3.5 h-3.5" style={{ color: '#d4930e' }} />
                     <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50">Sales Angle</p>
                   </div>
-                  <p className="text-sm text-blue-200 leading-relaxed">{intel.salesAngle}</p>
+                  <p className="text-sm text-blue-200 leading-relaxed">{stripCitations(intel.salesAngle)}</p>
                 </div>
               </div>
             ) : (
