@@ -23,6 +23,11 @@ import {
   DollarSign,
   TrendingUp,
   User,
+  Sparkles,
+  Loader2,
+  AlertTriangle,
+  Target,
+  Zap,
 } from 'lucide-react'
 
 const supabase = createClient(
@@ -63,6 +68,12 @@ interface Activity {
   notes: string | null
   completed: boolean
   created_at: string
+}
+
+interface CoachAdvice {
+  summary: string
+  actions: string[]
+  risk: string
 }
 
 const ACTIVITY_TYPES = [
@@ -129,6 +140,11 @@ export default function DealDetailPage() {
   })
   const [savingActivity, setSavingActivity] = useState(false)
 
+  // AI Coach
+  const [showCoach, setShowCoach] = useState(false)
+  const [coachLoading, setCoachLoading] = useState(false)
+  const [advice, setAdvice] = useState<CoachAdvice | null>(null)
+
   // ── Load data ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -162,7 +178,6 @@ export default function DealDetailPage() {
       setContacts(contactsRes.data ?? [])
       setActivities(activitiesRes.data ?? [])
 
-      // Find linked contact
       if (deal.contact_id) {
         const match = (contactsRes.data ?? []).find(c => c.id === deal.contact_id)
         setLinkedContact(match ?? null)
@@ -188,10 +203,7 @@ export default function DealDetailPage() {
       notes: editNotes.trim() || null,
     }
 
-    const { error } = await supabase
-      .from('leads')
-      .update(updates)
-      .eq('id', lead.id)
+    const { error } = await supabase.from('leads').update(updates).eq('id', lead.id)
 
     if (error) {
       console.error('Deal update failed:', error)
@@ -258,6 +270,66 @@ export default function DealDetailPage() {
     }
   }
 
+  // ── AI Deal Coach ──────────────────────────────────────────────────────────
+
+  async function handleGetCoaching() {
+    if (!lead) return
+    setShowCoach(true)
+    setCoachLoading(true)
+    setAdvice(null)
+
+    const currentStage = stages.find(s => s.id === lead.stage_id)
+    const daysSinceCreated = Math.floor(
+      (Date.now() - new Date(lead.created_at).getTime()) / (1000 * 60 * 60 * 24)
+    )
+
+    try {
+      const res = await fetch('/api/ai/deal-coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deal: { title: lead.title, value: lead.value },
+          stage: currentStage?.name,
+          contact: linkedContact ? {
+            name: contactName(linkedContact),
+            company: linkedContact.company,
+          } : null,
+          activities: activities.slice(0, 5).map(a => ({
+            type: a.type,
+            subject: a.subject,
+            notes: a.notes,
+            created_at: formatShortDate(a.created_at),
+          })),
+          daysSinceCreated,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        console.error('Deal coach error:', data)
+        toast.error(data.error ?? 'Failed to get coaching')
+      } else {
+        setAdvice(data.advice)
+      }
+    } catch (err) {
+      console.error('Coach error:', err)
+      toast.error('Failed to get coaching')
+    }
+
+    setCoachLoading(false)
+  }
+
+  function handleLogRecommended() {
+    if (!advice || advice.actions.length === 0) return
+    setActivityForm({
+      type: 'task',
+      subject: advice.actions[0],
+      notes: '',
+    })
+    setShowCoach(false)
+    setShowModal(true)
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   if (loading) {
@@ -294,63 +366,30 @@ export default function DealDetailPage() {
             <div className="flex-1 space-y-4">
               <div>
                 <label className={labelClass}>Deal Title</label>
-                <input
-                  type="text"
-                  value={editTitle}
-                  onChange={e => setEditTitle(e.target.value)}
-                  className={inputClass}
-                />
+                <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)} className={inputClass} />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>Value ($)</label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    min="0"
-                    step="100"
-                    value={editValue}
-                    onChange={e => setEditValue(e.target.value)}
-                    className={inputClass}
-                  />
+                  <input type="number" placeholder="0" min="0" step="100" value={editValue} onChange={e => setEditValue(e.target.value)} className={inputClass} />
                 </div>
                 <div>
                   <label className={labelClass}>Stage</label>
-                  <select
-                    value={editStageId}
-                    onChange={e => setEditStageId(e.target.value)}
-                    className={inputClass}
-                  >
-                    {stages.map(s => (
-                      <option key={s.id} value={s.id} className="bg-[#0f1c35]">{s.name}</option>
-                    ))}
+                  <select value={editStageId} onChange={e => setEditStageId(e.target.value)} className={inputClass}>
+                    {stages.map(s => (<option key={s.id} value={s.id} className="bg-[#0f1c35]">{s.name}</option>))}
                   </select>
                 </div>
               </div>
               <div>
                 <label className={labelClass}>Linked Contact</label>
-                <select
-                  value={editContactId}
-                  onChange={e => setEditContactId(e.target.value)}
-                  className={inputClass}
-                >
+                <select value={editContactId} onChange={e => setEditContactId(e.target.value)} className={inputClass}>
                   <option value="" className="bg-[#0f1c35]">— None —</option>
-                  {contacts.map(c => (
-                    <option key={c.id} value={c.id} className="bg-[#0f1c35]">
-                      {contactName(c)}{c.company ? ` — ${c.company}` : ''}
-                    </option>
-                  ))}
+                  {contacts.map(c => (<option key={c.id} value={c.id} className="bg-[#0f1c35]">{contactName(c)}{c.company ? ` — ${c.company}` : ''}</option>))}
                 </select>
               </div>
               <div>
                 <label className={labelClass}>Notes</label>
-                <textarea
-                  rows={3}
-                  value={editNotes}
-                  onChange={e => setEditNotes(e.target.value)}
-                  placeholder="Lane details, special requirements..."
-                  className={`${inputClass} resize-none`}
-                />
+                <textarea rows={3} value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="Lane details, special requirements..." className={`${inputClass} resize-none`} />
               </div>
             </div>
           ) : (
@@ -373,11 +412,7 @@ export default function DealDetailPage() {
               {linkedContact && (
                 <div className="flex items-center gap-2 mt-3">
                   <User className="w-4 h-4 text-blue-300/40" />
-                  <Link
-                    href={`/contacts/${linkedContact.id}`}
-                    className="text-sm hover:underline"
-                    style={{ color: '#d4930e' }}
-                  >
+                  <Link href={`/contacts/${linkedContact.id}`} className="text-sm hover:underline" style={{ color: '#d4930e' }}>
                     {contactName(linkedContact)}
                   </Link>
                   {linkedContact.company && (
@@ -386,10 +421,7 @@ export default function DealDetailPage() {
                 </div>
               )}
               {lead.notes && (
-                <div
-                  className="mt-4 p-3 rounded-lg text-sm text-blue-200/80 italic"
-                  style={{ backgroundColor: 'rgba(212,147,14,0.08)', borderLeft: '3px solid #d4930e' }}
-                >
+                <div className="mt-4 p-3 rounded-lg text-sm text-blue-200/80 italic" style={{ backgroundColor: 'rgba(212,147,14,0.08)', borderLeft: '3px solid #d4930e' }}>
                   {lead.notes}
                 </div>
               )}
@@ -397,39 +429,105 @@ export default function DealDetailPage() {
             </div>
           )}
 
-          {/* Edit / Save buttons */}
-          <div className="flex gap-2 shrink-0">
+          {/* Edit / Save / Coach buttons */}
+          <div className="flex flex-col gap-2 shrink-0">
             {editing ? (
               <>
-                <button
-                  onClick={saveDeal}
-                  disabled={savingDeal}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white hover:brightness-110 disabled:opacity-60 transition-colors"
-                  style={{ backgroundColor: '#d4930e' }}
-                >
-                  <Save className="w-4 h-4" />
-                  {savingDeal ? 'Saving...' : 'Save'}
+                <button onClick={saveDeal} disabled={savingDeal} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white hover:brightness-110 disabled:opacity-60 transition-colors" style={{ backgroundColor: '#d4930e' }}>
+                  <Save className="w-4 h-4" /> {savingDeal ? 'Saving...' : 'Save'}
                 </button>
-                <button
-                  onClick={cancelEdit}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-blue-300 border border-white/10 hover:text-white hover:border-white/20 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                  Cancel
+                <button onClick={cancelEdit} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-blue-300 border border-white/10 hover:text-white hover:border-white/20 transition-colors">
+                  <X className="w-4 h-4" /> Cancel
                 </button>
               </>
             ) : (
-              <button
-                onClick={() => setEditing(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-blue-300 border border-white/10 hover:text-white hover:border-white/20 transition-colors"
-              >
-                <Edit2 className="w-4 h-4" />
-                Edit
-              </button>
+              <>
+                <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-blue-300 border border-white/10 hover:text-white hover:border-white/20 transition-colors">
+                  <Edit2 className="w-4 h-4" /> Edit
+                </button>
+                <button
+                  onClick={handleGetCoaching}
+                  disabled={coachLoading}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-60"
+                  style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.4)', backgroundColor: 'rgba(212,147,14,0.08)' }}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {coachLoading ? 'Thinking...' : 'What next?'}
+                </button>
+              </>
             )}
           </div>
         </div>
       </div>
+
+      {/* ── AI Coach Panel ── */}
+      {showCoach && (
+        <div className="mb-6 rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(212,147,14,0.3)', backgroundColor: 'rgba(212,147,14,0.04)' }}>
+          <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(212,147,14,0.15)' }}>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4" style={{ color: '#d4930e' }} />
+              <p className="text-sm font-semibold" style={{ color: '#d4930e' }}>AI Deal Coach</p>
+            </div>
+            <button onClick={() => setShowCoach(false)} className="text-blue-300/40 hover:text-white transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="p-5">
+            {coachLoading ? (
+              <div className="flex items-center gap-3 py-6 justify-center">
+                <Loader2 className="w-5 h-5 animate-spin" style={{ color: '#d4930e' }} />
+                <p className="text-sm text-blue-300/60">Analyzing deal...</p>
+              </div>
+            ) : advice ? (
+              <div className="space-y-4">
+                {/* Summary */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50 mb-1">Where This Deal Stands</p>
+                  <p className="text-sm text-white font-medium">{advice.summary}</p>
+                </div>
+
+                {/* Actions */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Target className="w-3.5 h-3.5" style={{ color: '#d4930e' }} />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50">Next Actions</p>
+                  </div>
+                  <div className="space-y-2">
+                    {advice.actions.map((action, i) => (
+                      <div key={i} className="flex items-start gap-2.5 bg-white/5 rounded-lg px-3 py-2.5">
+                        <span className="text-xs font-bold mt-0.5 shrink-0" style={{ color: '#d4930e' }}>{i + 1}.</span>
+                        <p className="text-sm text-blue-200">{action}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Risk */}
+                <div className="flex items-start gap-2.5 bg-red-500/5 border border-red-500/10 rounded-lg px-3 py-2.5">
+                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-red-400/70 mb-0.5">Watch Out</p>
+                    <p className="text-sm text-blue-200">{advice.risk}</p>
+                  </div>
+                </div>
+
+                {/* Log recommended action button */}
+                <button
+                  onClick={handleLogRecommended}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white hover:brightness-110 transition-colors"
+                  style={{ backgroundColor: '#d4930e' }}
+                >
+                  <Zap className="w-4 h-4" />
+                  Log Recommended Action
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm text-blue-300/50 text-center py-4">No advice generated yet.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Activity Feed ── */}
       <div className="space-y-4">
@@ -525,7 +623,6 @@ export default function DealDetailPage() {
               </button>
             </div>
 
-            {/* Type picker */}
             <div>
               <label className="block text-xs text-blue-300/50 mb-2">Activity Type</label>
               <div className="grid grid-cols-5 gap-2">
@@ -551,7 +648,6 @@ export default function DealDetailPage() {
               </div>
             </div>
 
-            {/* Subject */}
             <div>
               <label className={labelClass}>Subject *</label>
               <input
@@ -570,7 +666,6 @@ export default function DealDetailPage() {
               />
             </div>
 
-            {/* Notes */}
             <div>
               <label className={labelClass}>Notes</label>
               <textarea
@@ -582,7 +677,6 @@ export default function DealDetailPage() {
               />
             </div>
 
-            {/* Actions */}
             <div className="flex gap-3 pt-1">
               <button
                 onClick={logActivity}
