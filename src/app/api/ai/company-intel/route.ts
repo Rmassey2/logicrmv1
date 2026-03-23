@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+function stripAllTags(s: string) {
+  let c = s
+  while (/<cite[^>]*>/.test(c)) {
+    c = c.replace(/<cite[^>]*>/g, '').replace(/<\/cite>/g, '')
+  }
+  return c.replace(/<\/?[a-zA-Z][a-zA-Z0-9_]*[^>]*>/g, '').trim()
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { companyName, industry, location } = await req.json()
@@ -64,13 +72,19 @@ Return ONLY the JSON object. No markdown, no code fences.`
     // Parse JSON from response
     const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
     try {
-      const intel = JSON.parse(cleaned)
+      const raw = JSON.parse(cleaned)
+      const intel = {
+        overview: stripAllTags(raw.overview ?? ''),
+        freightProfile: stripAllTags(raw.freightProfile ?? ''),
+        recentNews: stripAllTags(raw.recentNews ?? ''),
+        salesAngle: stripAllTags(raw.salesAngle ?? ''),
+      }
       return NextResponse.json({ intel })
     } catch {
       // If JSON parsing fails, try to extract sections from plain text
       return NextResponse.json({
         intel: {
-          overview: cleaned,
+          overview: stripAllTags(cleaned),
           freightProfile: '',
           recentNews: '',
           salesAngle: '',

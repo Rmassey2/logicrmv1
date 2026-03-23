@@ -37,8 +37,16 @@ const ACTIVITY_ICONS: Record<string, typeof PhoneCall> = {
   call: PhoneCall, email: MailOpen, note: StickyNote, meeting: CalendarDays, task: CheckSquare,
 }
 
-function stripCitations(text: string) {
-  return text.replace(/<cite[^>]*>([^<]*)<\/cite>/g, '$1')
+function stripTags(text: string) {
+  // Remove <cite index="...">text</cite> keeping inner text
+  let cleaned = text
+  // Loop to handle nested or repeated cite tags
+  while (/<cite[^>]*>/.test(cleaned)) {
+    cleaned = cleaned.replace(/<cite[^>]*>/g, '').replace(/<\/cite>/g, '')
+  }
+  // Strip any other XML-style tags (e.g. <source>, <search_result>, etc.)
+  cleaned = cleaned.replace(/<\/?[a-zA-Z][a-zA-Z0-9_]*[^>]*>/g, '')
+  return cleaned.trim()
 }
 
 function formatDate(iso: string) {
@@ -179,7 +187,7 @@ export default function CompanyDetailPage() {
   async function handleSaveIntel() {
     if (!company || !intel) return
     setSavingIntel(true)
-    const intelText = `[AI Intel - ${new Date().toLocaleDateString()}]\n\nOVERVIEW: ${stripCitations(intel.overview)}\n\nFREIGHT PROFILE: ${stripCitations(intel.freightProfile)}\n\nRECENT NEWS: ${stripCitations(intel.recentNews)}\n\nSALES ANGLE: ${stripCitations(intel.salesAngle)}`
+    const intelText = `[AI Intel - ${new Date().toLocaleDateString()}]\n\nOVERVIEW: ${stripTags(intel.overview)}\n\nFREIGHT PROFILE: ${stripTags(intel.freightProfile)}\n\nRECENT NEWS: ${stripTags(intel.recentNews)}\n\nSALES ANGLE: ${stripTags(intel.salesAngle)}`
     const existingNotes = company.notes ? `${company.notes}\n\n---\n\n` : ''
     const newNotes = existingNotes + intelText
 
@@ -334,28 +342,28 @@ export default function CompanyDetailPage() {
                     <Building2 className="w-3.5 h-3.5" style={{ color: '#d4930e' }} />
                     <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50">Company Overview</p>
                   </div>
-                  <p className="text-sm text-blue-200 leading-relaxed">{stripCitations(intel.overview)}</p>
+                  <p className="text-sm text-blue-200 leading-relaxed">{stripTags(intel.overview)}</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
                     <Truck className="w-3.5 h-3.5" style={{ color: '#d4930e' }} />
                     <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50">Freight Profile</p>
                   </div>
-                  <p className="text-sm text-blue-200 leading-relaxed">{stripCitations(intel.freightProfile)}</p>
+                  <p className="text-sm text-blue-200 leading-relaxed">{stripTags(intel.freightProfile)}</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
                     <Newspaper className="w-3.5 h-3.5" style={{ color: '#d4930e' }} />
                     <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50">Recent News</p>
                   </div>
-                  <p className="text-sm text-blue-200 leading-relaxed">{stripCitations(intel.recentNews)}</p>
+                  <p className="text-sm text-blue-200 leading-relaxed">{stripTags(intel.recentNews)}</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
                     <Target className="w-3.5 h-3.5" style={{ color: '#d4930e' }} />
                     <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50">Sales Angle</p>
                   </div>
-                  <p className="text-sm text-blue-200 leading-relaxed">{stripCitations(intel.salesAngle)}</p>
+                  <p className="text-sm text-blue-200 leading-relaxed">{stripTags(intel.salesAngle)}</p>
                 </div>
               </div>
             ) : (
