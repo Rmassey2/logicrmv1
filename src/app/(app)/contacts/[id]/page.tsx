@@ -23,7 +23,6 @@ import {
   CalendarDays,
   CheckSquare,
   Clock,
-  ChevronDown,
   Trash2,
 } from 'lucide-react'
 
@@ -155,7 +154,7 @@ export default function ContactDetailPage() {
       setLoading(false)
     }
     load()
-  }, [id])
+  }, [id, router])
 
   // ── Save contact edits ─────────────────────────────────────────────────────
 
