@@ -141,7 +141,7 @@ export default function DealDetailPage() {
         supabase.from('leads').select('*').eq('id', id).single(),
         supabase.from('pipeline_stages').select('id, name').eq('user_id', user.id).order('position'),
         supabase.from('contacts').select('id, first_name, last_name, company').eq('user_id', user.id).order('first_name'),
-        supabase.from('activities').select('*').eq('contact_id', id).order('created_at', { ascending: false }),
+        supabase.from('activities').select('*').eq('lead_id', id).order('created_at', { ascending: false }),
       ])
 
       if (leadRes.error || !leadRes.data) {
@@ -223,7 +223,7 @@ export default function DealDetailPage() {
     setSavingActivity(true)
 
     const { data, error } = await supabase.from('activities').insert({
-      contact_id: id,
+      lead_id: id,
       user_id: userId,
       type: activityForm.type,
       subject: activityForm.subject.trim(),
