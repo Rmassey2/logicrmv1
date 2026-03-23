@@ -141,12 +141,21 @@ export default function CampaignDetailPage() {
 
   // ── Launch campaign ────────────────────────────────────────────────────────
 
+  async function getAuthHeaders() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return {
+      'Content-Type': 'application/json',
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    }
+  }
+
   async function handleLaunch() {
     setLaunching(true)
     try {
+      const headers = await getAuthHeaders()
       const res = await fetch('/api/campaigns/launch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ campaign_id: id }),
       })
       const data = await res.json()
@@ -169,9 +178,10 @@ export default function CampaignDetailPage() {
   async function handlePause() {
     setPausing(true)
     try {
+      const headers = await getAuthHeaders()
       const res = await fetch('/api/campaigns/launch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ campaign_id: id, action: 'pause' }),
       })
       const data = await res.json()
@@ -192,9 +202,10 @@ export default function CampaignDetailPage() {
   async function handleSync() {
     setSyncing(true)
     try {
+      const headers = await getAuthHeaders()
       const res = await fetch('/api/campaigns/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ campaign_id: id }),
       })
       const data = await res.json()

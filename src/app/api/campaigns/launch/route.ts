@@ -2,17 +2,30 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createCampaign, addLeadsToCampaign, launchCampaign, type InstantlyLead } from '@/lib/instantly'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+function getSupabaseClient(req: NextRequest) {
+  // Forward the user's auth token so RLS works server-side
+  const authHeader = req.headers.get('authorization')
+  const token = authHeader?.replace('Bearer ', '')
+
+  const client = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    token ? { global: { headers: { Authorization: `Bearer ${token}` } } } : undefined
+  )
+  return client
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { campaign_id, action } = await req.json()
+    const body = await req.json()
+    const { campaign_id, action } = body
+    console.log('Launch API received:', { campaign_id, action })
+
     if (!campaign_id) {
       return NextResponse.json({ error: 'campaign_id required' }, { status: 400 })
     }
+
+    const supabase = getSupabaseClient(req)
 
     // Load campaign
     const { data: campaign, error: campError } = await supabase
@@ -21,8 +34,13 @@ export async function POST(req: NextRequest) {
       .eq('id', campaign_id)
       .single()
 
+    console.log('Campaign query result:', { campaign, campError })
+
     if (campError || !campaign) {
-      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Campaign not found', details: campError?.message },
+        { status: 404 }
+      )
     }
 
     // Handle pause action
@@ -48,10 +66,12 @@ export async function POST(req: NextRequest) {
     // ── Launch flow ──────────────────────────────────────────────────────
 
     // Load enrolled contacts
-    const { data: enrollments } = await supabase
+    const { data: enrollments, error: enrollError } = await supabase
       .from('campaign_contacts')
       .select('contact_id')
       .eq('campaign_id', campaign_id)
+
+    console.log('Enrollments query:', { count: enrollments?.length, enrollError })
 
     if (!enrollments || enrollments.length === 0) {
       return NextResponse.json({ error: 'No contacts enrolled' }, { status: 400 })
@@ -74,6 +94,8 @@ export async function POST(req: NextRequest) {
       campaign.body ?? ''
     )
 
+    console.log('Instantly create result:', createRes)
+
     if (!createRes.ok || !createRes.data?.id) {
       return NextResponse.json({ error: `Instantly create failed: ${createRes.error}` }, { status: 500 })
     }
@@ -92,6 +114,7 @@ export async function POST(req: NextRequest) {
 
     if (leads.length > 0) {
       const leadsRes = await addLeadsToCampaign(instantlyCampaignId, leads)
+      console.log('Instantly leads result:', leadsRes)
       if (!leadsRes.ok) {
         console.error('Failed to add leads to Instantly:', leadsRes.error)
       }
@@ -99,6 +122,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Launch
     const launchRes = await launchCampaign(instantlyCampaignId)
+    console.log('Instantly launch result:', launchRes)
     if (!launchRes.ok) {
       return NextResponse.json({ error: `Instantly launch failed: ${launchRes.error}` }, { status: 500 })
     }
