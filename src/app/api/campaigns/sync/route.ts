@@ -2,15 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getCampaignAnalytics } from '@/lib/instantly'
 
-function getSupabaseClient(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  const token = authHeader?.replace('Bearer ', '')
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    token ? { global: { headers: { Authorization: `Bearer ${token}` } } } : undefined
-  )
-}
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,8 +13,6 @@ export async function POST(req: NextRequest) {
     if (!campaign_id) {
       return NextResponse.json({ error: 'campaign_id required' }, { status: 400 })
     }
-
-    const supabase = getSupabaseClient(req)
 
     const { data: campaign } = await supabase
       .from('email_campaigns')

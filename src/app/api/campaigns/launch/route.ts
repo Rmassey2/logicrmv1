@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createCampaign, addLeadsToCampaign, launchCampaign, type InstantlyLead } from '@/lib/instantly'
 
+// Use service role key to bypass RLS in server-side API routes.
+// Falls back to anon key if service role key is not set.
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
 export async function POST(req: NextRequest) {
   try {
     // 1. Read campaign_id from request body
@@ -13,33 +20,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'campaign_id required' }, { status: 400 })
     }
 
-    // 2. Create Supabase client with user's auth token
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-
-    // Set the user's session so RLS works
-    const authHeader = req.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
-    console.log('[launch] Step 2 - Auth token present:', !!token)
-
-    if (token) {
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: token,
-        refresh_token: '',
-      })
-      console.log('[launch] Step 2 - setSession result:', { sessionError })
-    }
-
-    // 3. Query email_campaigns where id = campaign_id
+    // 2. Query email_campaigns where id = campaign_id
     const { data: campaign, error: campError } = await supabase
       .from('email_campaigns')
       .select('*')
       .eq('id', campaign_id)
       .single()
 
-    console.log('[launch] Step 3 - Campaign query:', {
+    console.log('[launch] Step 2 - Campaign query:', {
       found: !!campaign,
       name: campaign?.name,
       error: campError?.message,
@@ -73,13 +61,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, status: 'paused' })
     }
 
-    // 4. Query campaign_contacts joined with contacts
+    // 3. Query campaign_contacts joined with contacts
     const { data: enrollments, error: enrollError } = await supabase
       .from('campaign_contacts')
       .select('contact_id, contacts(id, first_name, last_name, email, company)')
       .eq('campaign_id', campaign_id)
 
-    console.log('[launch] Step 4 - Enrollments:', {
+    console.log('[launch] Step 3 - Enrollments:', {
       count: enrollments?.length,
       error: enrollError?.message,
     })
@@ -94,25 +82,31 @@ export async function POST(req: NextRequest) {
     // Flatten joined contacts
     const contacts = enrollments
       .map(e => {
-        const c = e.contacts as unknown as { id: string; first_name: string | null; last_name: string | null; email: string | null; company: string | null } | null
+        const c = e.contacts as unknown as {
+          id: string
+          first_name: string | null
+          last_name: string | null
+          email: string | null
+          company: string | null
+        } | null
         return c
       })
       .filter((c): c is NonNullable<typeof c> => !!c && !!c.email)
 
-    console.log('[launch] Step 4 - Contacts with email:', contacts.length)
+    console.log('[launch] Step 3 - Contacts with email:', contacts.length)
 
     if (contacts.length === 0) {
       return NextResponse.json({ error: 'No contacts with email found' }, { status: 400 })
     }
 
-    // 5. Create campaign in Instantly.ai
+    // 4. Create campaign in Instantly.ai
     const createRes = await createCampaign(
       campaign.name,
       campaign.subject,
       campaign.body ?? ''
     )
 
-    console.log('[launch] Step 5 - Instantly create:', {
+    console.log('[launch] Step 4 - Instantly create:', {
       ok: createRes.ok,
       id: createRes.data?.id,
       error: createRes.error,
@@ -124,7 +118,7 @@ export async function POST(req: NextRequest) {
 
     const instantlyCampaignId = createRes.data.id
 
-    // Add leads to Instantly
+    // 5. Add leads to Instantly
     const leads: InstantlyLead[] = contacts.map(c => ({
       email: c.email!,
       firstName: c.first_name ?? undefined,
