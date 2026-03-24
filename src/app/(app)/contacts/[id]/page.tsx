@@ -144,6 +144,12 @@ export default function ContactDetailPage() {
   const [generatedEmail, setGeneratedEmail] = useState<{ subject: string; body: string } | null>(null)
   const [copiedField, setCopiedField] = useState<string | null>(null)
 
+  // Send Email
+  const [showSendEmail, setShowSendEmail] = useState(false)
+  const [sendSubject, setSendSubject] = useState('')
+  const [sendBody, setSendBody] = useState('')
+  const [sending, setSending] = useState(false)
+
   // AI Call Prep
   const [showCallPrep, setShowCallPrep] = useState(false)
   const [callPrepLoading, setCallPrepLoading] = useState(false)
@@ -390,6 +396,39 @@ export default function ContactDetailPage() {
     toast.success('Brief copied to clipboard')
   }
 
+  // ── Send Email ──────────────────────────────────────────────────────────
+
+  async function handleSendEmail() {
+    if (!sendSubject.trim() || !sendBody.trim() || !contact?.email) return
+    setSending(true)
+    try {
+      const res = await fetch('/api/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: contact.email,
+          subject: sendSubject.trim(),
+          body: sendBody.trim(),
+          contact_id: id,
+          user_id: userId,
+          from_name: 'Randall Massey',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Send failed') }
+      else {
+        toast.success('Email sent and logged!')
+        setShowSendEmail(false)
+        setSendSubject('')
+        setSendBody('')
+        // Refresh activities
+        const { data: acts } = await supabase.from('activities').select('*').eq('contact_id', id).order('created_at', { ascending: false })
+        setActivities(acts ?? [])
+      }
+    } catch { toast.error('Send failed') }
+    setSending(false)
+  }
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   if (loading) {
@@ -523,6 +562,15 @@ export default function ContactDetailPage() {
                 >
                   <FileText size={14} /> Post-Call
                 </Link>
+                {contact?.email && (
+                  <button
+                    onClick={() => setShowSendEmail(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.4)', backgroundColor: 'rgba(212,147,14,0.08)' }}
+                  >
+                    <MailOpen size={14} /> Send Email
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1055,6 +1103,67 @@ export default function ContactDetailPage() {
             ) : (
               <p className="text-sm opacity-40 text-center py-6">No brief generated yet.</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Send Email Modal ── */}
+      {showSendEmail && contact?.email && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowSendEmail(false) }}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl p-6 space-y-4"
+            style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.1)' }}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-white">Send Email</h3>
+              <button onClick={() => setShowSendEmail(false)} className="opacity-50 hover:opacity-100">
+                <X size={20} />
+              </button>
+            </div>
+            <div>
+              <label className="block text-xs opacity-50 mb-1">To</label>
+              <p className="text-sm text-white">{contact.email}</p>
+            </div>
+            <div>
+              <label className="block text-xs opacity-50 mb-1">Subject</label>
+              <input
+                value={sendSubject}
+                onChange={e => setSendSubject(e.target.value)}
+                placeholder="Subject line..."
+                className="input-field w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-xs opacity-50 mb-1">Body</label>
+              <textarea
+                value={sendBody}
+                onChange={e => setSendBody(e.target.value)}
+                placeholder="Email body..."
+                rows={6}
+                className="input-field w-full resize-none"
+              />
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={handleSendEmail}
+                disabled={sending || !sendSubject.trim() || !sendBody.trim()}
+                className="flex-1 py-2.5 rounded-lg font-semibold text-sm transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}
+              >
+                {sending ? 'Sending...' : 'Send Email'}
+              </button>
+              <button
+                onClick={() => setShowSendEmail(false)}
+                className="px-4 py-2.5 rounded-lg text-sm opacity-60 hover:opacity-100"
+                style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

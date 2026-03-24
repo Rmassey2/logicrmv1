@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
-import { Search, Plus, ChevronLeft, ChevronRight, Download, Trash2 } from 'lucide-react'
+import { Search, Plus, ChevronLeft, ChevronRight, Download, Trash2, Send, CheckSquare, Square } from 'lucide-react'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,6 +37,8 @@ export default function ContactsPage() {
   const [exporting, setExporting] = useState(false)
   const [exportingInstantly, setExportingInstantly] = useState(false)
   const [deduping, setDeduping] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [pushingInstantly, setPushingInstantly] = useState(false)
 
   useEffect(() => {
     fetchContacts()
@@ -203,6 +205,41 @@ export default function ContactsPage() {
     fetchContacts()
   }
 
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (contacts.every(c => selectedIds.has(c.id))) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(contacts.map(c => c.id)))
+    }
+  }
+
+  async function handlePushToInstantly() {
+    if (selectedIds.size === 0) { toast.error('Select contacts first'); return }
+    setPushingInstantly(true)
+    try {
+      const res = await fetch('/api/instantly/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact_ids: Array.from(selectedIds) }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Export failed') }
+      else {
+        toast.success(`${data.leads_exported} leads pushed to Instantly as "${data.campaign_name}"`)
+        setSelectedIds(new Set())
+      }
+    } catch { toast.error('Export failed') }
+    setPushingInstantly(false)
+  }
+
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
 
   return (
@@ -240,6 +277,17 @@ export default function ContactsPage() {
             <Download className="w-4 h-4" />
             {exportingInstantly ? 'Exporting...' : 'Export for Instantly'}
           </button>
+          {selectedIds.size > 0 && (
+            <button
+              onClick={handlePushToInstantly}
+              disabled={pushingInstantly}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm text-white hover:brightness-110 disabled:opacity-60 transition-colors"
+              style={{ backgroundColor: '#d4930e' }}
+            >
+              <Send className="w-4 h-4" />
+              {pushingInstantly ? 'Pushing...' : `Push ${selectedIds.size} to Instantly`}
+            </button>
+          )}
           <button
             onClick={() => router.push('/contacts/new')}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm transition-colors hover:brightness-110"
@@ -269,7 +317,15 @@ export default function ContactsPage() {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-white/10">
-                <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-blue-300">Name</th>
+                <th className="px-3 py-3.5 w-10">
+                    <button onClick={toggleSelectAll} className="text-blue-300/40 hover:text-white transition-colors">
+                      {contacts.length > 0 && contacts.every(c => selectedIds.has(c.id))
+                        ? <CheckSquare className="w-4 h-4" style={{ color: '#d4930e' }} />
+                        : <Square className="w-4 h-4" />
+                      }
+                    </button>
+                  </th>
+                  <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-blue-300">Name</th>
                 <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-blue-300">Company</th>
                 <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-blue-300 hidden md:table-cell">Title</th>
                 <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-blue-300 hidden lg:table-cell">Phone</th>
@@ -280,13 +336,13 @@ export default function ContactsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-16 text-center text-blue-300/60 text-sm">
+                  <td colSpan={7} className="px-5 py-16 text-center text-blue-300/60 text-sm">
                     Loading contacts...
                   </td>
                 </tr>
               ) : contacts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-16 text-center text-blue-300/60 text-sm">
+                  <td colSpan={7} className="px-5 py-16 text-center text-blue-300/60 text-sm">
                     {search ? 'No contacts match your search.' : 'No contacts yet. Click "Add Contact" to get started.'}
                   </td>
                 </tr>
@@ -299,6 +355,14 @@ export default function ContactsPage() {
                       key={c.id}
                       className="border-b border-white/5 hover:bg-white/5 transition-colors"
                     >
+                      <td className="px-3 py-3.5 w-10">
+                        <button onClick={() => toggleSelect(c.id)} className="text-blue-300/40 hover:text-white transition-colors">
+                          {selectedIds.has(c.id)
+                            ? <CheckSquare className="w-4 h-4" style={{ color: '#d4930e' }} />
+                            : <Square className="w-4 h-4" />
+                          }
+                        </button>
+                      </td>
                       <td className="px-5 py-3.5 text-sm font-medium whitespace-nowrap">
                         <Link href={`/contacts/${c.id}`} className="text-white hover:underline" style={{ color: '#d4930e' }}>
                           {name}

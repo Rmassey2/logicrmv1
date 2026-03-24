@@ -78,6 +78,11 @@ export default function SettingsPage() {
   const [stages, setStages] = useState<Stage[]>([])
   const [savingStages, setSavingStages] = useState(false)
 
+  // Gmail
+  const [gmailConnected, setGmailConnected] = useState(false)
+  const [gmailEmail, setGmailEmail] = useState('')
+  const [gmailSyncing, setGmailSyncing] = useState(false)
+
   // Team
   const [orgName, setOrgName] = useState('')
   const [orgId, setOrgId] = useState<string | null>(null)
@@ -121,6 +126,18 @@ export default function SettingsPage() {
       .eq('user_id', user.id)
       .order('position', { ascending: true })
     setStages(stageData ?? [])
+
+    // Gmail connection check
+    const { data: gmailSetting } = await supabase
+      .from('user_settings')
+      .select('value')
+      .eq('user_id', user.email ?? '')
+      .eq('key', 'gmail_email')
+      .maybeSingle()
+    if (gmailSetting?.value) {
+      setGmailConnected(true)
+      setGmailEmail(gmailSetting.value)
+    }
 
     // Organization & team
     const { data: membership } = await supabase
@@ -260,6 +277,26 @@ export default function SettingsPage() {
     setInviteEmail('')
     setInviting(false)
     loadData()
+  }
+
+  // ── Gmail Sync ──────────────────────────────────────────────────────────
+
+  async function handleGmailSync() {
+    if (!gmailEmail) return
+    setGmailSyncing(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    try {
+      const res = await fetch('/api/gmail/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id, gmail_email: gmailEmail }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Sync failed') }
+      else { toast.success(`${data.synced} emails synced as activities`) }
+    } catch { toast.error('Sync failed') }
+    setGmailSyncing(false)
   }
 
   // ── Pipeline Stages ──────────────────────────────────────────────────────
@@ -466,6 +503,38 @@ export default function SettingsPage() {
               {savingCompany ? 'Saving...' : 'Save Company Info'}
             </button>
           </div>
+        </SectionCard>
+
+        {/* ── Gmail Integration ─────────────────────────────────────────── */}
+        <SectionCard title="Gmail Integration">
+          {gmailConnected ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
+                <p className="text-sm text-white">Connected as <span style={{ color: '#d4930e' }}>{gmailEmail}</span></p>
+              </div>
+              <button
+                onClick={handleGmailSync}
+                disabled={gmailSyncing}
+                className="px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 disabled:opacity-60 transition-colors"
+                style={{ backgroundColor: '#d4930e' }}
+              >
+                {gmailSyncing ? 'Syncing...' : 'Sync Emails Now'}
+              </button>
+              <p className="text-blue-300/40 text-xs">Syncs sent emails and matches them to your contacts as activities.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-blue-300/60">Connect your Gmail to automatically sync email activity with your contacts.</p>
+              <a
+                href="/api/gmail/connect"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 transition-colors"
+                style={{ backgroundColor: '#d4930e' }}
+              >
+                Connect Gmail
+              </a>
+            </div>
+          )}
         </SectionCard>
 
         {/* ── Team ───────────────────────────────────────────────────────── */}
