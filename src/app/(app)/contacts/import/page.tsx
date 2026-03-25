@@ -147,10 +147,11 @@ export default function ImportContactsPage() {
     if (file) parseFile(file)
   }
 
-  function getMappedRows(): { row: Record<string, string | null>; notes: string | null }[] {
+  function getMappedRows(): { row: Record<string, string | null>; notes: string | null; fallbackUsed: string | null }[] {
     return rows.map((row) => {
       const mapped: Record<string, string | null> = {}
       const extraNotes: string[] = []
+      let fallbackUsed: string | null = null
 
       // Direct field mappings
       for (const field of DB_FIELDS) {
@@ -170,6 +171,40 @@ export default function ImportContactsPage() {
           } else {
             mapped['first_name'] = fullName.slice(0, spaceIdx)
             mapped['last_name'] = fullName.slice(spaceIdx + 1).trim() || null
+          }
+        }
+      }
+
+      // FIRST_NAME FALLBACK — try raw row columns if still null
+      if (!mapped['first_name'] || !mapped['first_name'].trim()) {
+        // Try common raw column names directly from the spreadsheet
+        const rawName = (
+          row['Lead Contact Name'] || row['Name'] || row['name'] ||
+          row['Contact Name'] || row['contact_name'] || row['Full Name'] ||
+          row['first_name'] || row['FirstName'] || row['First Name'] || ''
+        ).toString().trim()
+
+        if (rawName) {
+          const nameParts = rawName.split(/\s+/)
+          mapped['first_name'] = nameParts[0]
+          mapped['last_name'] = nameParts.slice(1).join(' ') || null
+          fallbackUsed = `raw name column: "${rawName}"`
+        } else {
+          // Fall back to company
+          const rawCompany = (
+            mapped['company'] ||
+            row['Company'] || row['company'] || row['Company Name'] ||
+            row['companyName'] || row['Organization'] || ''
+          ).toString().trim()
+
+          if (rawCompany) {
+            mapped['first_name'] = rawCompany
+            mapped['last_name'] = null
+            fallbackUsed = `company name: "${rawCompany}"`
+          } else {
+            mapped['first_name'] = 'Unknown'
+            mapped['last_name'] = null
+            fallbackUsed = 'no name or company found'
           }
         }
       }
@@ -199,7 +234,7 @@ export default function ImportContactsPage() {
         }
       }
 
-      return { row: mapped, notes: extraNotes.length > 0 ? extraNotes.join('; ') : null }
+      return { row: mapped, notes: extraNotes.length > 0 ? extraNotes.join('; ') : null, fallbackUsed }
     })
   }
 
@@ -218,7 +253,7 @@ export default function ImportContactsPage() {
     // Filter and prepare rows
     const toImport: Record<string, string | null>[] = []
     for (let i = 0; i < allMapped.length; i++) {
-      const { row, notes } = allMapped[i]
+      const { row, notes, fallbackUsed } = allMapped[i]
 
       // Skip only if entire row is empty
       if (isRowEmpty(row)) {
@@ -230,17 +265,9 @@ export default function ImportContactsPage() {
       const clean: Record<string, string | null> = { user_id: user.id }
       for (const key of DB_FIELDS) clean[key] = row[key] ?? null
 
-      // first_name CANNOT be null — apply fallbacks
-      if (!clean['first_name'] || !clean['first_name'].trim()) {
-        if (clean['company'] && clean['company'].trim()) {
-          clean['first_name'] = clean['company'].trim()
-          clean['last_name'] = null
-          reasons.push(`Row ${i + 2}: no name found, used company "${clean['first_name']}" as first_name`)
-        } else {
-          clean['first_name'] = 'Unknown'
-          clean['last_name'] = null
-          reasons.push(`Row ${i + 2}: no name or company, set first_name to "Unknown"`)
-        }
+      // Log fallback usage
+      if (fallbackUsed) {
+        reasons.push(`Row ${i + 2}: used fallback for first_name (${fallbackUsed})`)
       }
 
       // Append secondary email to notes if present
