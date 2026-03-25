@@ -230,6 +230,19 @@ export default function ImportContactsPage() {
       const clean: Record<string, string | null> = { user_id: user.id }
       for (const key of DB_FIELDS) clean[key] = row[key] ?? null
 
+      // first_name CANNOT be null — apply fallbacks
+      if (!clean['first_name'] || !clean['first_name'].trim()) {
+        if (clean['company'] && clean['company'].trim()) {
+          clean['first_name'] = clean['company'].trim()
+          clean['last_name'] = null
+          reasons.push(`Row ${i + 2}: no name found, used company "${clean['first_name']}" as first_name`)
+        } else {
+          clean['first_name'] = 'Unknown'
+          clean['last_name'] = null
+          reasons.push(`Row ${i + 2}: no name or company, set first_name to "Unknown"`)
+        }
+      }
+
       // Append secondary email to notes if present
       if (notes) {
         clean['notes'] = notes
