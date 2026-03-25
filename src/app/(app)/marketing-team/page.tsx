@@ -98,9 +98,6 @@ export default function MarketingTeamPage() {
     setMessages(prev => [...prev, { role: 'user', content: userMsg }])
     setStreaming(true)
 
-    // Add empty assistant message to stream into
-    setMessages(prev => [...prev, { role: 'assistant', content: '' }])
-
     try {
       const res = await fetch('/api/marketing-team/chat', {
         method: 'POST',
@@ -108,59 +105,15 @@ export default function MarketingTeamPage() {
         body: JSON.stringify({ message: userMsg, agentId: activeAgent.id, userId }),
       })
 
-      if (!res.ok || !res.body) {
-        setMessages(prev => {
-          const updated = [...prev]
-          updated[updated.length - 1] = { role: 'assistant', content: 'Sorry, something went wrong. Try again.' }
-          return updated
-        })
-        setStreaming(false)
-        return
-      }
+      const data = await res.json()
 
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let fullText = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value, { stream: true })
-        // Parse SSE events
-        const lines = chunk.split('\n')
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const data = line.slice(6)
-          if (data === '[DONE]') continue
-          try {
-            const parsed = JSON.parse(data)
-            if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-              fullText += parsed.delta.text
-              setMessages(prev => {
-                const updated = [...prev]
-                updated[updated.length - 1] = { role: 'assistant', content: fullText }
-                return updated
-              })
-            }
-          } catch { /* skip non-JSON lines */ }
-        }
-      }
-
-      // Ensure final text is set
-      if (fullText) {
-        setMessages(prev => {
-          const updated = [...prev]
-          updated[updated.length - 1] = { role: 'assistant', content: fullText }
-          return updated
-        })
+      if (!res.ok || !data.response) {
+        setMessages(prev => [...prev, { role: 'assistant', content: data.error ?? 'Sorry, something went wrong. Try again.' }])
+      } else {
+        setMessages(prev => [...prev, { role: 'assistant', content: data.response }])
       }
     } catch {
-      setMessages(prev => {
-        const updated = [...prev]
-        updated[updated.length - 1] = { role: 'assistant', content: 'Connection error. Try again.' }
-        return updated
-      })
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Connection error. Try again.' }])
     }
 
     setStreaming(false)
@@ -221,7 +174,7 @@ export default function MarketingTeamPage() {
                   : { backgroundColor: 'rgba(255,255,255,0.05)', color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.08)' }
                 }
               >
-                <p className="whitespace-pre-wrap">{msg.content}{streaming && i === messages.length - 1 && msg.role === 'assistant' ? '▊' : ''}</p>
+                <p className="whitespace-pre-wrap">{msg.content}</p>
               </div>
             </div>
           ))}

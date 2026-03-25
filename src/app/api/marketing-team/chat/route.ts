@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -57,16 +57,22 @@ async function getAgentContext(agentId: string, userId: string): Promise<string>
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, agentId, userId } = await req.json()
+    const body = await req.json()
+    const { message, agentId, userId } = body
+
     if (!message || !agentId || !userId) {
-      return new Response(JSON.stringify({ error: 'message, agentId, userId required' }), { status: 400 })
+      return NextResponse.json({ error: 'message, agentId, userId required' }, { status: 400 })
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) return new Response(JSON.stringify({ error: 'ANTHROPIC_API_KEY not configured' }), { status: 500 })
+    if (!apiKey) {
+      return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
+    }
 
     const context = await getAgentContext(agentId, userId)
     const systemPrompt = `${SYSTEM_PROMPTS[agentId] ?? SYSTEM_PROMPTS.rex}\n\nCRM DATA:\n${context}`
+
+    console.log('[marketing-team/chat] Calling Anthropic:', { agentId, model: 'claude-haiku-4-5-20251001', messageLength: message.length })
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -78,7 +84,6 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 2048,
-        stream: true,
         system: systemPrompt,
         messages: [{ role: 'user', content: message }],
       }),
@@ -86,25 +91,19 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const errBody = await response.text()
-      console.error('Anthropic chat error:', response.status, errBody)
-      return new Response(JSON.stringify({ error: `AI error ${response.status}: ${errBody}` }), { status: 500 })
+      console.error('[marketing-team/chat] Anthropic error:', response.status, errBody)
+      return NextResponse.json({ error: `Anthropic API ${response.status}: ${errBody}` }, { status: 500 })
     }
 
-    // Forward the SSE stream directly
-    return new Response(response.body, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      },
-    })
+    const result = await response.json()
+    const text = result.content?.[0]?.text ?? ''
+
+    console.log('[marketing-team/chat] Success, response length:', text.length)
+
+    return NextResponse.json({ response: text })
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err)
-    const stack = err instanceof Error ? err.stack : undefined
-    console.error('Chat error:', { message, stack })
-    return new Response(JSON.stringify({ error: message, stack }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    const errMsg = err instanceof Error ? err.message : String(err)
+    console.error('[marketing-team/chat] Unhandled error:', errMsg)
+    return NextResponse.json({ error: errMsg }, { status: 500 })
   }
 }
