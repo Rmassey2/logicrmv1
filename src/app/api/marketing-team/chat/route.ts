@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 2048,
         stream: true,
         system: systemPrompt,
@@ -85,9 +85,9 @@ export async function POST(req: NextRequest) {
     })
 
     if (!response.ok) {
-      const err = await response.text()
-      console.error('Anthropic stream error:', err)
-      return new Response(JSON.stringify({ error: 'AI error' }), { status: 500 })
+      const errBody = await response.text()
+      console.error('Anthropic chat error:', response.status, errBody)
+      return new Response(JSON.stringify({ error: `AI error ${response.status}: ${errBody}` }), { status: 500 })
     }
 
     // Forward the SSE stream directly

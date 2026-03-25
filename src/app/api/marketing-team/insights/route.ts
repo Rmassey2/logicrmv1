@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 256,
         system: `${systemPrompt}\n\nCRM Data:\n${crmData}`,
         messages: [{ role: 'user', content: 'Give me your top insight right now.' }],
@@ -71,9 +71,9 @@ export async function POST(req: NextRequest) {
     })
 
     if (!response.ok) {
-      const err = await response.text()
-      console.error('Anthropic error:', err)
-      return NextResponse.json({ error: 'AI error' }, { status: 500 })
+      const errBody = await response.text()
+      console.error('Anthropic insights error:', response.status, errBody)
+      return NextResponse.json({ error: `AI error ${response.status}: ${errBody}` }, { status: 500 })
     }
 
     const result = await response.json()
