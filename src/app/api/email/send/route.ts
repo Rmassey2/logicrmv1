@@ -22,8 +22,7 @@ export async function POST(req: NextRequest) {
 
     const resend = new Resend(apiKey)
 
-    const fromAddress = process.env.RESEND_FROM_EMAIL || 'noreply@logicrm.app'
-    const fromField = from_name ? `${from_name} <${fromAddress}>` : fromAddress
+    const fromField = `${from_name || 'Jarrett'} <jarrett@macoships.com>`
 
     const { data, error } = await resend.emails.send({
       from: fromField,
