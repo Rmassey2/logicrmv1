@@ -265,9 +265,42 @@ export default function ImportContactsPage() {
       const clean: Record<string, string | null> = { user_id: user.id }
       for (const key of DB_FIELDS) clean[key] = row[key] ?? null
 
-      // Log fallback usage
+      // BULLETPROOF first_name — never allow null
+      if (!clean['first_name'] || !String(clean['first_name']).trim()) {
+        // Try the original raw spreadsheet row — check every possible column name
+        const rawRow = rows[i] ?? {}
+        const rawName = String(
+          rawRow['Lead Contact Name'] ?? rawRow['Name'] ?? rawRow['name'] ??
+          rawRow['Contact Name'] ?? rawRow['contact_name'] ?? rawRow['Full Name'] ??
+          rawRow['first_name'] ?? rawRow['FirstName'] ?? rawRow['First Name'] ?? ''
+        ).trim()
+
+        if (rawName) {
+          const spaceIndex = rawName.indexOf(' ')
+          clean['first_name'] = spaceIndex > 0 ? rawName.substring(0, spaceIndex) : rawName
+          clean['last_name'] = spaceIndex > 0 ? rawName.substring(spaceIndex + 1).trim() : null
+          reasons.push(`Row ${i + 2}: first_name from raw name column: "${rawName}"`)
+        } else {
+          // Try company
+          const rawCompany = String(
+            clean['company'] ?? rawRow['Company'] ?? rawRow['company'] ??
+            rawRow['Company Name'] ?? rawRow['companyName'] ?? rawRow['Organization'] ?? ''
+          ).trim()
+          if (rawCompany) {
+            clean['first_name'] = rawCompany
+            clean['last_name'] = null
+            reasons.push(`Row ${i + 2}: first_name from company: "${rawCompany}"`)
+          } else {
+            clean['first_name'] = 'Unknown'
+            clean['last_name'] = null
+            reasons.push(`Row ${i + 2}: first_name set to "Unknown" — no name or company found`)
+          }
+        }
+      }
+
+      // Log fallback usage from getMappedRows
       if (fallbackUsed) {
-        reasons.push(`Row ${i + 2}: used fallback for first_name (${fallbackUsed})`)
+        reasons.push(`Row ${i + 2}: mapping fallback: ${fallbackUsed}`)
       }
 
       // Append secondary email to notes if present
@@ -277,6 +310,15 @@ export default function ImportContactsPage() {
 
       toImport.push(clean)
     }
+
+    // Debug: log first 3 contacts to verify first_name
+    console.log('[import] First 3 contacts to insert:', toImport.slice(0, 3).map(c => ({
+      first_name: c.first_name,
+      last_name: c.last_name,
+      company: c.company,
+      email: c.email,
+    })))
+    console.log('[import] Total to insert:', toImport.length, '| Any null first_name:', toImport.some(c => !c.first_name))
 
     // Batch insert
     for (let i = 0; i < toImport.length; i += BATCH_SIZE) {
