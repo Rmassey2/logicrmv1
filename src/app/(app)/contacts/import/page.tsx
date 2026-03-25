@@ -27,10 +27,30 @@ const CONTACT_FIELDS = [
   { key: 'location', label: 'Location → City + State' },
 ] as const
 
-// The actual DB columns we insert into (no combo fields)
 const DB_FIELDS = ['first_name', 'last_name', 'email', 'phone', 'company', 'title', 'role', 'city', 'state'] as const
 
 type Step = 'upload' | 'map' | 'preview' | 'importing' | 'done'
+
+// Parse email field — take first email, return secondary if present
+function parseEmail(raw: string | null): { primary: string | null; secondary: string | null } {
+  if (!raw) return { primary: null, secondary: null }
+  const trimmed = raw.trim()
+  if (!trimmed) return { primary: null, secondary: null }
+
+  // Split on comma, semicolon, or slash
+  const parts = trimmed.split(/[,;\/]/).map(s => s.trim()).filter(s => s.includes('@'))
+  if (parts.length === 0) return { primary: null, secondary: null }
+  if (parts.length === 1) return { primary: parts[0], secondary: null }
+  return { primary: parts[0], secondary: parts[1] }
+}
+
+// Check if a row is entirely empty
+function isRowEmpty(row: Record<string, string | null>): boolean {
+  for (const key of DB_FIELDS) {
+    if (row[key] && row[key]!.trim()) return false
+  }
+  return true
+}
 
 export default function ImportContactsPage() {
   const router = useRouter()
@@ -42,36 +62,28 @@ export default function ImportContactsPage() {
   const [rows, setRows] = useState<Record<string, string>[]>([])
   const [mapping, setMapping] = useState<Record<string, string>>({})
   const [importedCount, setImportedCount] = useState(0)
+  const [skippedCount, setSkippedCount] = useState(0)
+  const [skipReasons, setSkipReasons] = useState<string[]>([])
   const [errorCount, setErrorCount] = useState(0)
 
   function autoMap(fileHeaders: string[]) {
     const auto: Record<string, string> = {}
     const lower = fileHeaders.map((h) => h.toLowerCase().replace(/[^a-z0-9]/g, ''))
 
-    // Check for combo columns first so they take priority
     const leadContactIdx = lower.findIndex((h) => h === 'leadcontactname')
-    if (leadContactIdx !== -1) {
-      auto['lead_contact_name'] = fileHeaders[leadContactIdx]
-    }
+    if (leadContactIdx !== -1) auto['lead_contact_name'] = fileHeaders[leadContactIdx]
 
     const locationIdx = lower.findIndex((h) => h === 'location')
-    if (locationIdx !== -1) {
-      auto['location'] = fileHeaders[locationIdx]
-    }
+    if (locationIdx !== -1) auto['location'] = fileHeaders[locationIdx]
 
     for (const field of CONTACT_FIELDS) {
-      // Skip combo fields in the normal loop (handled above)
       if (field.key === 'lead_contact_name' || field.key === 'location') continue
-      // Skip first/last name if we already have lead_contact_name mapped
       if ((field.key === 'first_name' || field.key === 'last_name') && auto['lead_contact_name']) continue
-      // Skip city/state if we already have location mapped
       if ((field.key === 'city' || field.key === 'state') && auto['location']) continue
 
       const fieldNorm = field.key.replace(/_/g, '')
       const idx = lower.findIndex((h) =>
-        h === fieldNorm ||
-        h === field.key ||
-        h.includes(fieldNorm) ||
+        h === fieldNorm || h === field.key || h.includes(fieldNorm) ||
         (field.key === 'first_name' && (h === 'firstname' || h === 'first')) ||
         (field.key === 'last_name' && (h === 'lastname' || h === 'last')) ||
         (field.key === 'phone' && (h.includes('phone') || h.includes('tel'))) ||
@@ -88,6 +100,12 @@ export default function ImportContactsPage() {
   function parseFile(file: File) {
     setFileName(file.name)
     const ext = file.name.split('.').pop()?.toLowerCase()
+
+    // .xlsb warning
+    if (ext === 'xlsb') {
+      toast.error('Please open this file in Excel and Save As .xlsx before importing.')
+      return
+    }
 
     if (ext === 'csv') {
       Papa.parse(file, {
@@ -129,17 +147,18 @@ export default function ImportContactsPage() {
     if (file) parseFile(file)
   }
 
-  function getMappedRows() {
+  function getMappedRows(): { row: Record<string, string | null>; notes: string | null }[] {
     return rows.map((row) => {
       const mapped: Record<string, string | null> = {}
+      const extraNotes: string[] = []
 
-      // Start with direct field mappings
+      // Direct field mappings
       for (const field of DB_FIELDS) {
         const srcCol = mapping[field]
         mapped[field] = srcCol ? (String(row[srcCol]).trim() || null) : null
       }
 
-      // "Lead Contact Name" → split into first_name + last_name
+      // "Lead Contact Name" → split on first space
       const nameCol = mapping['lead_contact_name']
       if (nameCol) {
         const fullName = String(row[nameCol]).trim()
@@ -155,7 +174,7 @@ export default function ImportContactsPage() {
         }
       }
 
-      // "Location" → split into city + state
+      // "Location" → split on comma
       const locCol = mapping['location']
       if (locCol) {
         const location = String(row[locCol]).trim()
@@ -171,7 +190,16 @@ export default function ImportContactsPage() {
         }
       }
 
-      return mapped
+      // Email handling — take first, store second in notes
+      if (mapped['email']) {
+        const { primary, secondary } = parseEmail(mapped['email'])
+        mapped['email'] = primary
+        if (secondary) {
+          extraNotes.push(`Secondary email: ${secondary}`)
+        }
+      }
+
+      return { row: mapped, notes: extraNotes.length > 0 ? extraNotes.join('; ') : null }
     })
   }
 
@@ -180,34 +208,58 @@ export default function ImportContactsPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth/login'); return }
 
-    const mapped = getMappedRows()
+    const allMapped = getMappedRows()
     const BATCH_SIZE = 100
     let success = 0
     let errors = 0
+    let skipped = 0
+    const reasons: string[] = []
 
-    for (let i = 0; i < mapped.length; i += BATCH_SIZE) {
-      const batch = mapped.slice(i, i + BATCH_SIZE).map((row) => {
-        const clean: Record<string, string | null> = { user_id: user.id }
-        for (const key of DB_FIELDS) clean[key] = row[key] ?? null
-        return clean
-      })
+    // Filter and prepare rows
+    const toImport: Record<string, string | null>[] = []
+    for (let i = 0; i < allMapped.length; i++) {
+      const { row, notes } = allMapped[i]
+
+      // Skip only if entire row is empty
+      if (isRowEmpty(row)) {
+        skipped++
+        reasons.push(`Row ${i + 2}: entirely empty`)
+        continue
+      }
+
+      const clean: Record<string, string | null> = { user_id: user.id }
+      for (const key of DB_FIELDS) clean[key] = row[key] ?? null
+
+      // Append secondary email to notes if present
+      if (notes) {
+        clean['notes'] = notes
+      }
+
+      toImport.push(clean)
+    }
+
+    // Batch insert
+    for (let i = 0; i < toImport.length; i += BATCH_SIZE) {
+      const batch = toImport.slice(i, i + BATCH_SIZE)
       const { error, data } = await supabase.from('contacts').insert(batch).select('id')
       if (error) {
         errors += batch.length
+        reasons.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${error.message}`)
       } else {
         success += data?.length ?? batch.length
       }
     }
 
     setImportedCount(success)
+    setSkippedCount(skipped)
+    setSkipReasons(reasons)
     setErrorCount(errors)
     setStep('done')
   }
 
-  const preview = getMappedRows().slice(0, 5)
+  const previewData = getMappedRows().slice(0, 5)
   const mappedFieldCount = Object.values(mapping).filter(Boolean).length
 
-  // Which DB columns will have data after mapping + splitting
   const activeDbFields = DB_FIELDS.filter((f) => {
     if (mapping[f]) return true
     if ((f === 'first_name' || f === 'last_name') && mapping['lead_contact_name']) return true
@@ -244,6 +296,7 @@ export default function ImportContactsPage() {
             Drag & drop your file here, or click to browse
           </p>
           <p className="text-blue-300/60 text-sm">Supports .csv and .xlsx files</p>
+          <p className="text-blue-300/30 text-xs mt-2">Note: .xlsb files must be saved as .xlsx first</p>
           <input
             ref={fileRef}
             type="file"
@@ -327,7 +380,7 @@ export default function ImportContactsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {preview.map((row, i) => (
+                  {previewData.map(({ row }, i) => (
                     <tr key={i} className="border-b border-white/5">
                       {activeDbFields.map((f) => (
                         <td key={f} className="px-4 py-3 text-sm text-blue-200 whitespace-nowrap">
@@ -362,9 +415,7 @@ export default function ImportContactsPage() {
       {/* Step: Importing */}
       {step === 'importing' && (
         <div className="bg-white/5 border border-white/10 rounded-2xl p-16 text-center">
-          <div
-            className="w-12 h-12 rounded-full border-4 border-white/10 border-t-[#d4930e] animate-spin mx-auto mb-4"
-          />
+          <div className="w-12 h-12 rounded-full border-4 border-white/10 border-t-[#d4930e] animate-spin mx-auto mb-4" />
           <p className="text-white font-medium">Importing contacts...</p>
           <p className="text-blue-300/60 text-sm mt-1">This may take a moment.</p>
         </div>
@@ -372,21 +423,37 @@ export default function ImportContactsPage() {
 
       {/* Step: Done */}
       {step === 'done' && (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-12 text-center">
-          {errorCount === 0 ? (
-            <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-emerald-400" />
-          ) : (
-            <AlertCircle className="w-12 h-12 mx-auto mb-4 text-yellow-400" />
-          )}
-          <p className="text-white font-bold text-lg mb-1">Import Complete</p>
-          <p className="text-blue-300 text-sm mb-1">
-            Successfully imported <span className="text-emerald-400 font-semibold">{importedCount}</span> contact{importedCount !== 1 && 's'}.
-          </p>
-          {errorCount > 0 && (
-            <p className="text-red-400 text-sm">
-              {errorCount} row{errorCount !== 1 && 's'} failed to import.
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-12">
+          <div className="text-center">
+            {errorCount === 0 ? (
+              <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-emerald-400" />
+            ) : (
+              <AlertCircle className="w-12 h-12 mx-auto mb-4 text-yellow-400" />
+            )}
+            <p className="text-white font-bold text-lg mb-1">Import Complete</p>
+            <p className="text-blue-300 text-sm mb-1">
+              <span className="text-emerald-400 font-semibold">{importedCount}</span> contact{importedCount !== 1 ? 's' : ''} imported
+              {skippedCount > 0 && (
+                <>, <span className="text-yellow-400 font-semibold">{skippedCount}</span> skipped</>
+              )}
             </p>
+            {errorCount > 0 && (
+              <p className="text-red-400 text-sm">
+                {errorCount} row{errorCount !== 1 ? 's' : ''} failed to import.
+              </p>
+            )}
+          </div>
+
+          {/* Skip/error reasons */}
+          {skipReasons.length > 0 && (
+            <div className="mt-4 bg-white/[0.03] border border-white/5 rounded-xl p-4 max-h-32 overflow-y-auto">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50 mb-2">Details</p>
+              {skipReasons.map((r, i) => (
+                <p key={i} className="text-xs text-blue-300/40">{r}</p>
+              ))}
+            </div>
           )}
+
           <div className="flex items-center justify-center gap-3 mt-6">
             <button
               onClick={() => router.push('/contacts')}
@@ -396,7 +463,7 @@ export default function ImportContactsPage() {
               View Contacts
             </button>
             <button
-              onClick={() => { setStep('upload'); setRows([]); setHeaders([]); setMapping({}) }}
+              onClick={() => { setStep('upload'); setRows([]); setHeaders([]); setMapping({}); setSkipReasons([]) }}
               className="px-6 py-2.5 rounded-lg font-semibold text-sm text-blue-300 border border-white/10 hover:text-white hover:border-white/20 transition-colors"
             >
               Import More
