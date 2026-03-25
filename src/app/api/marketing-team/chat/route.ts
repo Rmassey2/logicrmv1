@@ -98,8 +98,13 @@ export async function POST(req: NextRequest) {
         Connection: 'keep-alive',
       },
     })
-  } catch (err) {
-    console.error('Chat error:', err)
-    return new Response(JSON.stringify({ error: String(err) }), { status: 500 })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    const stack = err instanceof Error ? err.stack : undefined
+    console.error('Chat error:', { message, stack })
+    return new Response(JSON.stringify({ error: message, stack }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
 }
