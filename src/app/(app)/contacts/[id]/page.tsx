@@ -45,7 +45,9 @@ interface Contact {
   first_name: string
   last_name: string
   email: string | null
+  email2: string | null
   phone: string | null
+  cell_phone: string | null
   company: string | null
   title: string | null
   city: string | null
@@ -216,7 +218,9 @@ export default function ContactDetailPage() {
         first_name: editData.first_name,
         last_name:  editData.last_name,
         email:      editData.email,
+        email2:     editData.email2,
         phone:      editData.phone,
+        cell_phone: editData.cell_phone,
         company:    editData.company,
         title:      editData.title,
         city:       editData.city,
@@ -595,6 +599,20 @@ export default function ContactDetailPage() {
                 placeholder="(555) 000-0000"
               />
               <InfoFieldEdit
+                icon={<Mail size={14} />}
+                label="Secondary Email"
+                value={editData.email2 ?? ''}
+                onChange={v => setEditData(d => ({ ...d, email2: v }))}
+                placeholder="alt@company.com"
+              />
+              <InfoFieldEdit
+                icon={<Phone size={14} />}
+                label="Cell Phone"
+                value={editData.cell_phone ?? ''}
+                onChange={v => setEditData(d => ({ ...d, cell_phone: v }))}
+                placeholder="(555) 000-0000"
+              />
+              <InfoFieldEdit
                 icon={<MapPin size={14} />}
                 label="City"
                 value={editData.city ?? ''}
@@ -632,6 +650,20 @@ export default function ContactDetailPage() {
                 <InfoField icon={<Phone size={14} />} label="Phone">
                   <a href={`tel:${contact.phone}`} className="hover:underline" style={{ color: '#d4930e' }}>
                     {contact.phone}
+                  </a>
+                </InfoField>
+              )}
+              {contact.email2 && (
+                <InfoField icon={<Mail size={14} />} label="Secondary Email">
+                  <a href={`mailto:${contact.email2}`} className="hover:underline" style={{ color: '#d4930e' }}>
+                    {contact.email2}
+                  </a>
+                </InfoField>
+              )}
+              {contact.cell_phone && (
+                <InfoField icon={<Phone size={14} />} label="Cell Phone">
+                  <a href={`tel:${contact.cell_phone}`} className="hover:underline" style={{ color: '#d4930e' }}>
+                    {contact.cell_phone}
                   </a>
                 </InfoField>
               )}

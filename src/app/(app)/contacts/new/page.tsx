@@ -35,7 +35,9 @@ export default function NewContactPage() {
     first_name: '',
     last_name: '',
     email: '',
+    email2: '',
     phone: '',
+    cell_phone: '',
     company: '',
     title: '',
     role: '',
@@ -89,7 +91,9 @@ export default function NewContactPage() {
       first_name: form.first_name.trim() || null,
       last_name: form.last_name.trim() || null,
       email: form.email.trim() || null,
+      email2: form.email2.trim() || null,
       phone: form.phone.trim() || null,
+      cell_phone: form.cell_phone.trim() || null,
       company: companyName || null,
       company_id: companyId,
       title: form.title.trim() || null,
@@ -173,6 +177,30 @@ export default function NewContactPage() {
               placeholder="(555) 123-4567"
               value={form.phone}
               onChange={(e) => update('phone', e.target.value)}
+              className={inputClass}
+            />
+          </div>
+        </div>
+
+        {/* Row: Secondary Email / Cell Phone */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div>
+            <label className={labelClass}>Secondary Email</label>
+            <input
+              type="email"
+              placeholder="alt@example.com"
+              value={form.email2}
+              onChange={(e) => update('email2', e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Cell Phone</label>
+            <input
+              type="tel"
+              placeholder="(555) 987-6543"
+              value={form.cell_phone}
+              onChange={(e) => update('cell_phone', e.target.value)}
               className={inputClass}
             />
           </div>

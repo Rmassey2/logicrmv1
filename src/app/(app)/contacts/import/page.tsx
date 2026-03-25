@@ -18,7 +18,9 @@ const CONTACT_FIELDS = [
   { key: 'last_name', label: 'Last Name' },
   { key: 'lead_contact_name', label: 'Lead Contact Name → First + Last' },
   { key: 'email', label: 'Email' },
+  { key: 'email2', label: 'Secondary Email' },
   { key: 'phone', label: 'Phone' },
+  { key: 'cell_phone', label: 'Cell Phone' },
   { key: 'company', label: 'Company' },
   { key: 'title', label: 'Title' },
   { key: 'role', label: 'Role' },
@@ -27,7 +29,7 @@ const CONTACT_FIELDS = [
   { key: 'location', label: 'Location → City + State' },
 ] as const
 
-const DB_FIELDS = ['first_name', 'last_name', 'email', 'phone', 'company', 'title', 'role', 'city', 'state'] as const
+const DB_FIELDS = ['first_name', 'last_name', 'email', 'email2', 'phone', 'cell_phone', 'company', 'title', 'role', 'city', 'state'] as const
 
 type Step = 'upload' | 'map' | 'preview' | 'importing' | 'done'
 
@@ -86,8 +88,10 @@ export default function ImportContactsPage() {
         h === fieldNorm || h === field.key || h.includes(fieldNorm) ||
         (field.key === 'first_name' && (h === 'firstname' || h === 'first')) ||
         (field.key === 'last_name' && (h === 'lastname' || h === 'last')) ||
-        (field.key === 'phone' && (h.includes('phone') || h.includes('tel'))) ||
-        (field.key === 'email' && h.includes('email')) ||
+        (field.key === 'phone' && (h.includes('phone') || h.includes('tel')) && !h.includes('cell') && !h.includes('mobile')) ||
+        (field.key === 'cell_phone' && (h === 'cell' || h === 'cellphone' || h === 'mobile' || h === 'mobilephone' || h.includes('cellph') || h.includes('mobileph'))) ||
+        (field.key === 'email' && h.includes('email') && !h.includes('email2') && !h.includes('secondary')) ||
+        (field.key === 'email2' && (h.includes('email2') || h.includes('secondaryemail') || h.includes('altemail'))) ||
         (field.key === 'company' && (h.includes('company') || h.includes('organization') || h.includes('org'))) ||
         (field.key === 'city' && h.includes('city')) ||
         (field.key === 'state' && (h === 'state' || h === 'st' || h === 'province'))
@@ -225,12 +229,12 @@ export default function ImportContactsPage() {
         }
       }
 
-      // Email handling — take first, store second in notes
+      // Email handling — first email → email, second → email2
       if (mapped['email']) {
         const { primary, secondary } = parseEmail(mapped['email'])
         mapped['email'] = primary
         if (secondary) {
-          extraNotes.push(`Secondary email: ${secondary}`)
+          mapped['email2'] = mapped['email2'] || secondary
         }
       }
 
@@ -265,37 +269,24 @@ export default function ImportContactsPage() {
       const clean: Record<string, string | null> = { user_id: user.id }
       for (const key of DB_FIELDS) clean[key] = row[key] ?? null
 
-      // BULLETPROOF first_name — never allow null
+      // GUARANTEED first_name — use raw spreadsheet row directly
       if (!clean['first_name'] || !String(clean['first_name']).trim()) {
-        // Try the original raw spreadsheet row — check every possible column name
         const rawRow = rows[i] ?? {}
-        const rawName = String(
-          rawRow['Lead Contact Name'] ?? rawRow['Name'] ?? rawRow['name'] ??
-          rawRow['Contact Name'] ?? rawRow['contact_name'] ?? rawRow['Full Name'] ??
-          rawRow['first_name'] ?? rawRow['FirstName'] ?? rawRow['First Name'] ?? ''
-        ).trim()
+        const rawName = String(rawRow['Lead Contact Name'] || rawRow['Name'] || rawRow['name'] || '').trim()
+        const spaceIndex = rawName.indexOf(' ')
+        const firstName = spaceIndex > 0
+          ? rawName.substring(0, spaceIndex)
+          : (rawName || String(rawRow['Company'] || rawRow['company'] || clean['company'] || 'Unknown').trim())
+        const lastName = spaceIndex > 0 ? rawName.substring(spaceIndex + 1).trim() : ''
 
-        if (rawName) {
-          const spaceIndex = rawName.indexOf(' ')
-          clean['first_name'] = spaceIndex > 0 ? rawName.substring(0, spaceIndex) : rawName
-          clean['last_name'] = spaceIndex > 0 ? rawName.substring(spaceIndex + 1).trim() : null
-          reasons.push(`Row ${i + 2}: first_name from raw name column: "${rawName}"`)
-        } else {
-          // Try company
-          const rawCompany = String(
-            clean['company'] ?? rawRow['Company'] ?? rawRow['company'] ??
-            rawRow['Company Name'] ?? rawRow['companyName'] ?? rawRow['Organization'] ?? ''
-          ).trim()
-          if (rawCompany) {
-            clean['first_name'] = rawCompany
-            clean['last_name'] = null
-            reasons.push(`Row ${i + 2}: first_name from company: "${rawCompany}"`)
-          } else {
-            clean['first_name'] = 'Unknown'
-            clean['last_name'] = null
-            reasons.push(`Row ${i + 2}: first_name set to "Unknown" — no name or company found`)
-          }
-        }
+        clean['first_name'] = firstName
+        clean['last_name'] = lastName || clean['last_name']
+        reasons.push(`Row ${i + 2}: first_name fallback → "${firstName}"`)
+      }
+      // Final safety net — should never reach here but just in case
+      if (!clean['first_name']) {
+        clean['first_name'] = 'Unknown'
+        reasons.push(`Row ${i + 2}: first_name forced to "Unknown"`)
       }
 
       // Log fallback usage from getMappedRows
