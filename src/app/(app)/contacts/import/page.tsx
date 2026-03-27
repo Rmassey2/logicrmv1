@@ -171,10 +171,10 @@ export default function ImportContactsPage() {
           const spaceIdx = fullName.indexOf(' ')
           if (spaceIdx === -1) {
             mapped['first_name'] = fullName
-            mapped['last_name'] = null
+            mapped['last_name'] = ''
           } else {
             mapped['first_name'] = fullName.slice(0, spaceIdx)
-            mapped['last_name'] = fullName.slice(spaceIdx + 1).trim() || null
+            mapped['last_name'] = fullName.slice(spaceIdx + 1).trim() || ''
           }
         }
       }
@@ -191,7 +191,7 @@ export default function ImportContactsPage() {
         if (rawName) {
           const nameParts = rawName.split(/\s+/)
           mapped['first_name'] = nameParts[0]
-          mapped['last_name'] = nameParts.slice(1).join(' ') || null
+          mapped['last_name'] = nameParts.slice(1).join(' ') || ''
           fallbackUsed = `raw name column: "${rawName}"`
         } else {
           // Fall back to company
@@ -203,11 +203,11 @@ export default function ImportContactsPage() {
 
           if (rawCompany) {
             mapped['first_name'] = rawCompany
-            mapped['last_name'] = null
+            mapped['last_name'] = ''
             fallbackUsed = `company name: "${rawCompany}"`
           } else {
             mapped['first_name'] = 'Unknown'
-            mapped['last_name'] = null
+            mapped['last_name'] = ''
             fallbackUsed = 'no name or company found'
           }
         }
@@ -221,10 +221,10 @@ export default function ImportContactsPage() {
           const commaIdx = location.lastIndexOf(',')
           if (commaIdx === -1) {
             mapped['city'] = location
-            mapped['state'] = null
+            mapped['state'] = ''
           } else {
-            mapped['city'] = location.slice(0, commaIdx).trim() || null
-            mapped['state'] = location.slice(commaIdx + 1).trim() || null
+            mapped['city'] = location.slice(0, commaIdx).trim() || ''
+            mapped['state'] = location.slice(commaIdx + 1).trim() || ''
           }
         }
       }
@@ -257,7 +257,7 @@ export default function ImportContactsPage() {
     // Filter and prepare rows
     const toImport: Record<string, string | null>[] = []
     for (let i = 0; i < allMapped.length; i++) {
-      const { row, notes, fallbackUsed } = allMapped[i]
+      const { row, fallbackUsed } = allMapped[i]
 
       // Skip only if entire row is empty
       if (isRowEmpty(row)) {
@@ -266,40 +266,39 @@ export default function ImportContactsPage() {
         continue
       }
 
-      const clean: Record<string, string | null> = { user_id: user.id }
-      for (const key of DB_FIELDS) clean[key] = row[key] ?? null
+      // Build contact from raw spreadsheet row directly
+      const rawRow = rows[i] ?? {}
 
-      // GUARANTEED first_name — use raw spreadsheet row directly
-      if (!clean['first_name'] || !String(clean['first_name']).trim()) {
-        const rawRow = rows[i] ?? {}
-        const rawName = String(rawRow['Lead Contact Name'] || rawRow['Name'] || rawRow['name'] || '').trim()
-        const spaceIndex = rawName.indexOf(' ')
-        const firstName = spaceIndex > 0
-          ? rawName.substring(0, spaceIndex)
-          : (rawName || String(rawRow['Company'] || rawRow['company'] || clean['company'] || 'Unknown').trim())
-        const lastName = spaceIndex > 0 ? rawName.substring(spaceIndex + 1).trim() : ''
+      const rawName = String(rawRow['Lead Contact Name'] || rawRow['Name'] || rawRow['name'] || '').trim()
+      const spaceIndex = rawName.indexOf(' ')
+      const firstName = spaceIndex > 0 ? rawName.substring(0, spaceIndex) : (rawName || String(rawRow['Company'] || rawRow['company'] || 'Unknown').trim())
+      const lastName = spaceIndex > 0 ? rawName.substring(spaceIndex + 1).trim() : ''
 
-        clean['first_name'] = firstName
-        clean['last_name'] = lastName || clean['last_name']
-        reasons.push(`Row ${i + 2}: first_name fallback → "${firstName}"`)
-      }
-      // Final safety net — should never reach here but just in case
-      if (!clean['first_name']) {
-        clean['first_name'] = 'Unknown'
-        reasons.push(`Row ${i + 2}: first_name forced to "Unknown"`)
-      }
+      const emails = String(rawRow['Contact Email'] || rawRow['Email'] || rawRow['email'] || '').split(/[,;\/]/).map((e: string) => e.trim()).filter(Boolean)
+      const email1 = emails[0] || null
+      const email2val = emails[1] || null
+
+      const contact = Object.fromEntries(Object.entries({
+        user_id: user.id,
+        first_name: firstName || 'Unknown',
+        last_name: lastName || '',
+        email: email1,
+        email2: email2val,
+        phone: String(rawRow['Phone Number'] || rawRow['Phone'] || rawRow['phone'] || '').trim() || null,
+        cell_phone: String(rawRow['Cell Phone'] || rawRow['Cell'] || rawRow['Mobile'] || '').trim() || null,
+        company: String(rawRow['Company'] || rawRow['company'] || '').trim() || null,
+        city: String(rawRow['Location'] || '').split(',')[0]?.trim() || '',
+        state: String(rawRow['Location'] || '').split(',')[1]?.trim() || '',
+        notes: String(rawRow['Notes'] || rawRow['Notes/Follow Ups'] || '').trim() || null,
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      }).filter(([_key, v]) => v !== null && v !== undefined))
 
       // Log fallback usage from getMappedRows
       if (fallbackUsed) {
         reasons.push(`Row ${i + 2}: mapping fallback: ${fallbackUsed}`)
       }
 
-      // Append secondary email to notes if present
-      if (notes) {
-        clean['notes'] = notes
-      }
-
-      toImport.push(clean)
+      toImport.push(contact)
     }
 
     // Debug: log first 3 contacts to verify first_name
