@@ -275,23 +275,29 @@ export default function ImportContactsPage() {
       const lastName = spaceIndex > 0 ? rawName.substring(spaceIndex + 1).trim() : ''
 
       const emails = String(rawRow['Contact Email'] || rawRow['Email'] || rawRow['email'] || '').split(/[,;\/]/).map((e: string) => e.trim()).filter(Boolean)
-      const email1 = emails[0] || null
-      const email2val = emails[1] || null
+      const email1 = emails[0] || ''
+      const email2val = emails[1] || ''
+      const phone = String(rawRow['Phone Number'] || rawRow['Phone'] || rawRow['phone'] || '').trim()
+      const cellPhone = String(rawRow['Cell Phone'] || rawRow['Cell'] || rawRow['Mobile'] || '').trim()
+      const company = String(rawRow['Company'] || rawRow['company'] || '').trim()
+      const locationStr = String(rawRow['Location'] || '').trim()
+      const city = locationStr.split(',')[0]?.trim() || ''
+      const state = locationStr.split(',')[1]?.trim() || ''
+      const contactNotes = String(rawRow['Notes'] || rawRow['Notes/Follow Ups'] || '').trim()
 
-      const contact = Object.fromEntries(Object.entries({
+      const contact = {
         user_id: user.id,
         first_name: firstName || 'Unknown',
         last_name: lastName || '',
         email: email1,
         email2: email2val,
-        phone: String(rawRow['Phone Number'] || rawRow['Phone'] || rawRow['phone'] || '').trim() || null,
-        cell_phone: String(rawRow['Cell Phone'] || rawRow['Cell'] || rawRow['Mobile'] || '').trim() || null,
-        company: String(rawRow['Company'] || rawRow['company'] || '').trim() || null,
-        city: String(rawRow['Location'] || '').split(',')[0]?.trim() || '',
-        state: String(rawRow['Location'] || '').split(',')[1]?.trim() || '',
-        notes: String(rawRow['Notes'] || rawRow['Notes/Follow Ups'] || '').trim() || null,
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      }).filter(([_key, v]) => v !== null && v !== undefined))
+        phone: phone,
+        cell_phone: cellPhone,
+        company: company,
+        city: city,
+        state: state,
+        notes: contactNotes,
+      }
 
       // Log fallback usage from getMappedRows
       if (fallbackUsed) {
