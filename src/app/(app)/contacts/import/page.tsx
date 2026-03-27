@@ -65,6 +65,7 @@ export default function ImportContactsPage() {
   const [mapping, setMapping] = useState<Record<string, string>>({})
   const [importedCount, setImportedCount] = useState(0)
   const [skippedCount, setSkippedCount] = useState(0)
+  const [dupCount, setDupCount] = useState(0)
   const [skipReasons, setSkipReasons] = useState<string[]>([])
   const [errorCount, setErrorCount] = useState(0)
 
@@ -252,10 +253,28 @@ export default function ImportContactsPage() {
     let success = 0
     let errors = 0
     let skipped = 0
+    let duplicates = 0
     const reasons: string[] = []
 
+    // Step 1: Fetch existing contacts for dedup
+    const { data: existing } = await supabase
+      .from('contacts')
+      .select('email, first_name, last_name, company')
+      .eq('user_id', user.id)
+
+    // Step 2: Build dedup key set from existing contacts
+    const existingKeys = new Set(
+      existing?.map(c => [
+        c.email?.toLowerCase().trim(),
+        `${c.first_name?.toLowerCase().trim()} ${c.last_name?.toLowerCase().trim()} ${c.company?.toLowerCase().trim()}`
+      ]).flat().filter(Boolean)
+    )
+
+    // Track emails seen within this file for within-file dedup
+    const seenInFile = new Set<string>()
+
     // Filter and prepare rows
-    const toImport: Record<string, string | null>[] = []
+    const toImport: Record<string, string>[] = []
     for (let i = 0; i < allMapped.length; i++) {
       const { row, fallbackUsed } = allMapped[i]
 
@@ -285,6 +304,30 @@ export default function ImportContactsPage() {
       const state = locationStr.split(',')[1]?.trim() || ''
       const contactNotes = String(rawRow['Notes'] || rawRow['Notes/Follow Ups'] || '').trim()
 
+      // Step 3: Check for duplicates
+      const emailKey = email1.toLowerCase().trim()
+      const nameCompanyKey = `${firstName.toLowerCase().trim()} ${lastName.toLowerCase().trim()} ${company.toLowerCase().trim()}`
+
+      // Check against existing contacts in DB
+      if (emailKey && existingKeys.has(emailKey)) {
+        duplicates++
+        reasons.push(`Row ${i + 2}: duplicate email "${email1}" (already in contacts)`)
+        continue
+      }
+      if (existingKeys.has(nameCompanyKey)) {
+        duplicates++
+        reasons.push(`Row ${i + 2}: duplicate name+company "${firstName} ${lastName} / ${company}" (already in contacts)`)
+        continue
+      }
+
+      // Step 5: Check within-file duplicates
+      if (emailKey && seenInFile.has(emailKey)) {
+        duplicates++
+        reasons.push(`Row ${i + 2}: duplicate email "${email1}" (earlier in file)`)
+        continue
+      }
+      if (emailKey) seenInFile.add(emailKey)
+
       const contact = {
         user_id: user.id,
         first_name: firstName || 'Unknown',
@@ -299,7 +342,6 @@ export default function ImportContactsPage() {
         notes: contactNotes,
       }
 
-      // Log fallback usage from getMappedRows
       if (fallbackUsed) {
         reasons.push(`Row ${i + 2}: mapping fallback: ${fallbackUsed}`)
       }
@@ -307,14 +349,7 @@ export default function ImportContactsPage() {
       toImport.push(contact)
     }
 
-    // Debug: log first 3 contacts to verify first_name
-    console.log('[import] First 3 contacts to insert:', toImport.slice(0, 3).map(c => ({
-      first_name: c.first_name,
-      last_name: c.last_name,
-      company: c.company,
-      email: c.email,
-    })))
-    console.log('[import] Total to insert:', toImport.length, '| Any null first_name:', toImport.some(c => !c.first_name))
+    console.log('[import] Total to insert:', toImport.length, '| Duplicates skipped:', duplicates)
 
     // Batch insert
     for (let i = 0; i < toImport.length; i += BATCH_SIZE) {
@@ -330,6 +365,7 @@ export default function ImportContactsPage() {
 
     setImportedCount(success)
     setSkippedCount(skipped)
+    setDupCount(duplicates)
     setSkipReasons(reasons)
     setErrorCount(errors)
     setStep('done')
@@ -511,8 +547,11 @@ export default function ImportContactsPage() {
             <p className="text-white font-bold text-lg mb-1">Import Complete</p>
             <p className="text-blue-300 text-sm mb-1">
               <span className="text-emerald-400 font-semibold">{importedCount}</span> contact{importedCount !== 1 ? 's' : ''} imported
+              {dupCount > 0 && (
+                <>, <span className="text-blue-400 font-semibold">{dupCount}</span> duplicate{dupCount !== 1 ? 's' : ''} skipped</>
+              )}
               {skippedCount > 0 && (
-                <>, <span className="text-yellow-400 font-semibold">{skippedCount}</span> skipped</>
+                <>, <span className="text-yellow-400 font-semibold">{skippedCount}</span> empty row{skippedCount !== 1 ? 's' : ''} skipped</>
               )}
             </p>
             {errorCount > 0 && (
@@ -541,7 +580,7 @@ export default function ImportContactsPage() {
               View Contacts
             </button>
             <button
-              onClick={() => { setStep('upload'); setRows([]); setHeaders([]); setMapping({}); setSkipReasons([]) }}
+              onClick={() => { setStep('upload'); setRows([]); setHeaders([]); setMapping({}); setSkipReasons([]); setDupCount(0) }}
               className="px-6 py-2.5 rounded-lg font-semibold text-sm text-blue-300 border border-white/10 hover:text-white hover:border-white/20 transition-colors"
             >
               Import More

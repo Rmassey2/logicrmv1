@@ -1,0 +1,6 @@
+Lead Contact Name,Contact Email,Phone Number,Cell Phone,Company,Location,Notes
+John Smith,john@example.com;john2@backup.com,555-1234,555-9876,Acme Corp,"Denver, CO",Full name with two emails
+Tom NoEmail,,555-0000,,Solo LLC,"Miami, FL",Row with no email
+Bobby,,,,,,"Single name only"
+,,,,,NoName LLC,"Austin, TX",Blank name but has company
+Jane Doe,jane@doe.com,555-4321,555-6789,Widget Inc,"Portland, OR",Normal complete row
