@@ -25,7 +25,12 @@ async function request<T = unknown>(
 
     if (!res.ok) {
       const msg = body?.message ?? body?.error ?? `HTTP ${res.status}`
-      console.error(`Instantly API error [${path}]:`, msg, body)
+      console.error(`Instantly API error [${path}]:`, {
+        status: res.status,
+        statusText: res.statusText,
+        message: msg,
+        fullBody: JSON.stringify(body),
+      })
       return { ok: false, error: msg }
     }
 
@@ -84,13 +89,27 @@ export async function addLeadsToCampaign(
   campaignId: string,
   leads: InstantlyLead[]
 ) {
-  return request('/leads', {
+  // Instantly v2 API expects snake_case fields for lead data
+  const payload = {
+    campaign_id: campaignId,
+    leads: leads.map(l => ({
+      email: l.email,
+      first_name: l.firstName ?? '',
+      last_name: l.lastName ?? '',
+      company_name: l.companyName ?? '',
+    })),
+  }
+
+  console.log('[instantly] addLeadsToCampaign request:', JSON.stringify(payload, null, 2))
+
+  const result = await request('/leads', {
     method: 'POST',
-    body: JSON.stringify({
-      campaign_id: campaignId,
-      leads,
-    }),
+    body: JSON.stringify(payload),
   })
+
+  console.log('[instantly] addLeadsToCampaign response:', JSON.stringify(result, null, 2))
+
+  return result
 }
 
 // ─── Launch (activate) a campaign ────────────────────────────────────────────

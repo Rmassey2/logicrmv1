@@ -36,12 +36,21 @@ export async function POST(req: NextRequest) {
       companyName: contact.company ?? undefined,
     }
 
+    console.log('[push-contact] Pushing to Instantly:', {
+      contact_id,
+      instantly_campaign_id,
+      email: contact.email,
+      name: `${contact.first_name} ${contact.last_name}`,
+    })
+
     const result = await addLeadsToCampaign(instantly_campaign_id, [lead])
 
     if (!result.ok) {
+      console.error('[push-contact] Instantly push failed:', result.error)
       return NextResponse.json({ error: result.error ?? 'Instantly push failed' }, { status: 500 })
     }
 
+    console.log('[push-contact] Success:', result.data)
     return NextResponse.json({ success: true })
   } catch (err) {
     console.error('Push contact error:', err)
