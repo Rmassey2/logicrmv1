@@ -13,6 +13,9 @@ import {
   Check,
   Save,
   Loader2,
+  Pencil,
+  X,
+  RefreshCw,
 } from 'lucide-react'
 
 const supabase = createClient(
@@ -62,6 +65,13 @@ export default function AiSequencePage() {
   const [saving, setSaving] = useState(false)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
 
+  // Per-card edit state
+  const [editingIdx, setEditingIdx] = useState<number | null>(null)
+  const [modifiedSet, setModifiedSet] = useState<Set<number>>(new Set())
+  const [rewriteIdx, setRewriteIdx] = useState<number | null>(null)
+  const [rewritePrompt, setRewritePrompt] = useState('')
+  const [rewriting, setRewriting] = useState(false)
+
   // ── Generate ───────────────────────────────────────────────────────────────
 
   async function handleGenerate() {
@@ -70,6 +80,10 @@ export default function AiSequencePage() {
 
     setGenerating(true)
     setSequence([])
+    setEditingIdx(null)
+    setModifiedSet(new Set())
+    setRewriteIdx(null)
+    setRewritePrompt('')
 
     try {
       const res = await fetch('/api/ai/sequence', {
@@ -106,6 +120,48 @@ export default function AiSequencePage() {
 
   function updateTouch(idx: number, field: 'subject' | 'body', value: string) {
     setSequence(prev => prev.map((t, i) => i === idx ? { ...t, [field]: value } : t))
+  }
+
+  function handleEditSave(idx: number) {
+    setModifiedSet(prev => new Set(prev).add(idx))
+    setEditingIdx(null)
+    setRewriteIdx(null)
+    setRewritePrompt('')
+    toast.success(`Touch ${idx + 1} saved`)
+  }
+
+  async function handleRewrite(idx: number) {
+    if (!rewritePrompt.trim()) { toast.error('Enter rewrite instructions'); return }
+    setRewriting(true)
+
+    try {
+      const touch = sequence[idx]
+      const res = await fetch('/api/ai/rewrite-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject: touch.subject,
+          body: touch.body,
+          instructions: rewritePrompt.trim(),
+        }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast.error(data.error ?? 'Failed to rewrite')
+      } else {
+        updateTouch(idx, 'subject', data.email.subject)
+        updateTouch(idx, 'body', data.email.body)
+        setModifiedSet(prev => new Set(prev).add(idx))
+        setRewriteIdx(null)
+        setRewritePrompt('')
+        toast.success(`Touch ${idx + 1} rewritten!`)
+      }
+    } catch {
+      toast.error('Failed to rewrite email')
+    }
+
+    setRewriting(false)
   }
 
   // ── Copy ───────────────────────────────────────────────────────────────────
@@ -282,66 +338,160 @@ export default function AiSequencePage() {
           </div>
 
           <div className="space-y-4">
-            {sequence.map((touch, idx) => (
-              <div
-                key={idx}
-                className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden"
-              >
-                {/* Card header */}
-                <div className="px-5 py-3 border-b border-white/10 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-                      style={{ backgroundColor: 'rgba(212,147,14,0.15)', color: '#d4930e' }}
-                    >
-                      {touch.touch}
-                    </span>
-                    <div>
-                      <p className="text-sm font-medium text-white">Touch {touch.touch}</p>
-                      <p className={`text-[10px] uppercase tracking-wide ${DAY_COLORS[idx] ?? 'text-blue-300'}`}>
-                        Day {touch.day} · {touch.label}
-                      </p>
+            {sequence.map((touch, idx) => {
+              const isEditing = editingIdx === idx
+              const isModified = modifiedSet.has(idx)
+              const showRewrite = rewriteIdx === idx
+
+              return (
+                <div
+                  key={idx}
+                  className={`bg-white/5 border rounded-2xl overflow-hidden ${isEditing ? 'border-[#d4930e]/40' : 'border-white/10'}`}
+                >
+                  {/* Card header */}
+                  <div className="px-5 py-3 border-b border-white/10 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                        style={{ backgroundColor: 'rgba(212,147,14,0.15)', color: '#d4930e' }}
+                      >
+                        {touch.touch}
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium text-white">Touch {touch.touch}</p>
+                        <p className={`text-[10px] uppercase tracking-wide ${DAY_COLORS[idx] ?? 'text-blue-300'}`}>
+                          Day {touch.day} · {touch.label}
+                        </p>
+                      </div>
+                      {isModified && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/15 text-purple-400 uppercase tracking-wide">
+                          Modified
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleCopy(idx)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-300 border border-white/10 hover:text-white hover:border-white/20 transition-colors"
+                      >
+                        {copiedIdx === idx ? (
+                          <><Check className="w-3 h-3 text-emerald-400" /> Copied</>
+                        ) : (
+                          <><Copy className="w-3 h-3" /> Copy</>
+                        )}
+                      </button>
+                      {!isEditing ? (
+                        <button
+                          onClick={() => { setEditingIdx(idx); setRewriteIdx(null); setRewritePrompt('') }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-300 border border-white/10 hover:text-white hover:border-white/20 transition-colors"
+                        >
+                          <Pencil className="w-3 h-3" /> Edit
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => { setEditingIdx(null); setRewriteIdx(null); setRewritePrompt('') }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-400/70 border border-white/10 hover:text-red-400 hover:border-red-400/30 transition-colors"
+                        >
+                          <X className="w-3 h-3" /> Cancel
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleCopy(idx)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-300 border border-white/10 hover:text-white hover:border-white/20 transition-colors"
-                  >
-                    {copiedIdx === idx ? (
-                      <><Check className="w-3 h-3 text-emerald-400" /> Copied</>
-                    ) : (
-                      <><Copy className="w-3 h-3" /> Copy</>
-                    )}
-                  </button>
-                </div>
 
-                {/* Editable fields */}
-                <div className="p-5 space-y-3">
-                  <div>
-                    <label className="block text-[10px] font-semibold uppercase tracking-wide text-blue-300/50 mb-1">
-                      Subject Line
-                    </label>
-                    <input
-                      type="text"
-                      value={touch.subject}
-                      onChange={e => updateTouch(idx, 'subject', e.target.value)}
-                      className={inputClass}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-semibold uppercase tracking-wide text-blue-300/50 mb-1">
-                      Email Body
-                    </label>
-                    <textarea
-                      rows={5}
-                      value={touch.body}
-                      onChange={e => updateTouch(idx, 'body', e.target.value)}
-                      className={`${inputClass} resize-none font-mono text-xs leading-relaxed`}
-                    />
+                  {/* Card body */}
+                  <div className="p-5 space-y-3">
+                    {isEditing ? (
+                      <>
+                        <div>
+                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-blue-300/50 mb-1">
+                            Subject Line
+                          </label>
+                          <input
+                            type="text"
+                            value={touch.subject}
+                            onChange={e => updateTouch(idx, 'subject', e.target.value)}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-blue-300/50 mb-1">
+                            Email Body
+                          </label>
+                          <textarea
+                            rows={6}
+                            value={touch.body}
+                            onChange={e => updateTouch(idx, 'body', e.target.value)}
+                            className={`${inputClass} resize-none font-mono text-xs leading-relaxed`}
+                          />
+                        </div>
+
+                        {/* Edit action buttons */}
+                        <div className="flex items-center gap-3 pt-1">
+                          <button
+                            onClick={() => handleEditSave(idx)}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white hover:brightness-110 transition-colors"
+                            style={{ backgroundColor: '#d4930e' }}
+                          >
+                            <Check className="w-3 h-3" /> Save
+                          </button>
+                          <button
+                            onClick={() => setRewriteIdx(showRewrite ? null : idx)}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-blue-300 border border-white/10 hover:text-white hover:border-white/20 transition-colors"
+                          >
+                            <RefreshCw className="w-3 h-3" /> Rewrite with AI
+                          </button>
+                        </div>
+
+                        {/* Rewrite prompt */}
+                        {showRewrite && (
+                          <div className="mt-3 bg-white/[0.03] border border-white/10 rounded-xl p-4 space-y-3">
+                            <label className="block text-xs font-medium text-blue-300">
+                              What should be different about this email?
+                            </label>
+                            <input
+                              type="text"
+                              value={rewritePrompt}
+                              onChange={e => setRewritePrompt(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter' && !rewriting) handleRewrite(idx) }}
+                              placeholder='e.g. "make it shorter" or "add more urgency" or "focus on dry van capacity"'
+                              className={inputClass}
+                              disabled={rewriting}
+                            />
+                            <button
+                              onClick={() => handleRewrite(idx)}
+                              disabled={rewriting}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white hover:brightness-110 disabled:opacity-60 transition-colors"
+                              style={{ backgroundColor: '#d4930e' }}
+                            >
+                              {rewriting ? (
+                                <><Loader2 className="w-3 h-3 animate-spin" /> Rewriting...</>
+                              ) : (
+                                <><Sparkles className="w-3 h-3" /> Rewrite</>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-blue-300/50 mb-1">
+                            Subject Line
+                          </label>
+                          <p className="text-sm text-white">{touch.subject}</p>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-blue-300/50 mb-1">
+                            Email Body
+                          </label>
+                          <p className="text-xs text-blue-200 whitespace-pre-wrap leading-relaxed font-mono">{touch.body}</p>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* Bottom save button */}
