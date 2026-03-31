@@ -23,7 +23,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, X, DollarSign, TrendingUp, GripVertical } from 'lucide-react'
+import { Plus, X, DollarSign, TrendingUp, GripVertical, Search, Filter } from 'lucide-react'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,6 +44,8 @@ interface Lead {
   stage_id: string
   value: number | null
   contact_id: string | null
+  created_at: string
+  last_activity_at?: string | null
   contact?: {
     first_name: string | null
     last_name: string | null
@@ -302,6 +304,13 @@ export default function PipelinePage() {
   const [modalStageId, setModalStageId] = useState<string | null>(null)
   const [activeLead, setActiveLead] = useState<Lead | null>(null)
 
+  // Filters
+  const [search, setSearch] = useState('')
+  const [filterStage, setFilterStage] = useState('')
+  const [filterValue, setFilterValue] = useState('')
+  const [sortBy, setSortBy] = useState('newest')
+  const [filterActivity, setFilterActivity] = useState('')
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   )
@@ -310,7 +319,7 @@ export default function PipelinePage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth/login'); return }
 
-    const [stagesRes, leadsRes, contactsRes] = await Promise.all([
+    const [stagesRes, leadsRes, contactsRes, activitiesRes] = await Promise.all([
       supabase
         .from('pipeline_stages')
         .select('id, name, position')
@@ -318,14 +327,27 @@ export default function PipelinePage() {
         .order('position', { ascending: true }),
       supabase
         .from('leads')
-        .select('id, title, stage_id, value, contact_id, contact:contacts(first_name, last_name, company)')
+        .select('id, title, stage_id, value, contact_id, created_at, contact:contacts(first_name, last_name, company)')
         .eq('user_id', user.id),
       supabase
         .from('contacts')
         .select('id, first_name, last_name, company')
         .eq('user_id', user.id)
         .order('first_name', { ascending: true }),
+      supabase
+        .from('activities')
+        .select('contact_id, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false }),
     ])
+
+    // Build map: contact_id → latest activity date
+    const activityMap = new Map<string, string>()
+    for (const a of (activitiesRes.data ?? [])) {
+      if (a.contact_id && !activityMap.has(a.contact_id)) {
+        activityMap.set(a.contact_id, a.created_at)
+      }
+    }
 
     setStages(stagesRes.data ?? [])
     // Supabase returns joined relations as objects (single) or arrays; normalize
@@ -337,6 +359,8 @@ export default function PipelinePage() {
         stage_id: l.stage_id as string,
         value: l.value as number | null,
         contact_id: l.contact_id as string | null,
+        created_at: l.created_at as string,
+        last_activity_at: l.contact_id ? activityMap.get(l.contact_id as string) ?? null : null,
         contact: l.contact
           ? Array.isArray(l.contact)
             ? (l.contact[0] as Lead['contact'])
@@ -425,10 +449,62 @@ export default function PipelinePage() {
     loadData()
   }
 
-  // ── Stats ────────────────────────────────────────────────────────────────
+  // ── Filter & sort logic ─────────────────────────────────────────────────
 
-  const totalValue = leads.reduce((sum, l) => sum + (l.value ?? 0), 0)
-  const totalDeals = leads.length
+  const hasFilters = search || filterStage || filterValue || sortBy !== 'newest' || filterActivity
+
+  function clearFilters() {
+    setSearch('')
+    setFilterStage('')
+    setFilterValue('')
+    setSortBy('newest')
+    setFilterActivity('')
+  }
+
+  const filteredLeads = leads.filter(l => {
+    // Search
+    if (search) {
+      const q = search.toLowerCase()
+      const contactName = l.contact ? [l.contact.first_name, l.contact.last_name].filter(Boolean).join(' ').toLowerCase() : ''
+      const company = (l.contact?.company || '').toLowerCase()
+      const title = l.title.toLowerCase()
+      if (!contactName.includes(q) && !company.includes(q) && !title.includes(q)) return false
+    }
+    // Stage
+    if (filterStage && l.stage_id !== filterStage) return false
+    // Value
+    if (filterValue) {
+      const v = l.value ?? 0
+      if (filterValue === 'under10k' && v >= 10000) return false
+      if (filterValue === '10k-50k' && (v < 10000 || v > 50000)) return false
+      if (filterValue === '50k-100k' && (v < 50000 || v > 100000)) return false
+      if (filterValue === 'over100k' && v <= 100000) return false
+    }
+    // Activity
+    if (filterActivity) {
+      const days = parseInt(filterActivity)
+      const cutoff = Date.now() - days * 86400000
+      if (l.last_activity_at && new Date(l.last_activity_at).getTime() > cutoff) return false
+      // If no activity at all, it counts as "no activity"
+    }
+    return true
+  })
+
+  const sortedLeads = [...filteredLeads].sort((a, b) => {
+    if (sortBy === 'oldest') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    if (sortBy === 'highest') return (b.value ?? 0) - (a.value ?? 0)
+    if (sortBy === 'lowest') return (a.value ?? 0) - (b.value ?? 0)
+    if (sortBy === 'activity') {
+      const aTime = a.last_activity_at ? new Date(a.last_activity_at).getTime() : 0
+      const bTime = b.last_activity_at ? new Date(b.last_activity_at).getTime() : 0
+      return bTime - aTime
+    }
+    // newest (default)
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  })
+
+  const totalValue = sortedLeads.reduce((sum, l) => sum + (l.value ?? 0), 0)
+  const totalDeals = sortedLeads.length
   const modalStage = stages.find((s) => s.id === modalStageId)
 
   // ── Loading ──────────────────────────────────────────────────────────────
@@ -441,10 +517,12 @@ export default function PipelinePage() {
     )
   }
 
+  const selectClass = 'bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/50 focus:border-transparent transition-colors'
+
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="px-8 pt-8 pb-4 shrink-0">
+      <div className="px-8 pt-8 pb-2 shrink-0">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-white">Pipeline</h2>
@@ -452,6 +530,7 @@ export default function PipelinePage() {
               <span className="flex items-center gap-1 text-blue-300 text-sm">
                 <TrendingUp className="w-4 h-4" />
                 {totalDeals} deal{totalDeals !== 1 && 's'}
+                {totalDeals !== leads.length && <span className="text-blue-300/40">of {leads.length}</span>}
               </span>
               <span className="flex items-center gap-1 text-sm" style={{ color: '#d4930e' }}>
                 <DollarSign className="w-4 h-4" />
@@ -460,6 +539,52 @@ export default function PipelinePage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Toolbar */}
+      <div className="px-8 py-3 shrink-0 flex flex-wrap items-center gap-3">
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-blue-300/40" />
+          <input
+            type="text"
+            placeholder="Search deals..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="bg-white/5 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-blue-300/40 focus:outline-none focus:ring-2 focus:ring-yellow-500/50 w-48"
+          />
+        </div>
+        <select value={filterStage} onChange={e => setFilterStage(e.target.value)} className={selectClass}>
+          <option value="" className="bg-[#0f1c35]">All Stages</option>
+          {stages.map(s => <option key={s.id} value={s.id} className="bg-[#0f1c35]">{s.name}</option>)}
+        </select>
+        <select value={filterValue} onChange={e => setFilterValue(e.target.value)} className={selectClass}>
+          <option value="" className="bg-[#0f1c35]">Any Value</option>
+          <option value="under10k" className="bg-[#0f1c35]">Under $10k</option>
+          <option value="10k-50k" className="bg-[#0f1c35]">$10k – $50k</option>
+          <option value="50k-100k" className="bg-[#0f1c35]">$50k – $100k</option>
+          <option value="over100k" className="bg-[#0f1c35]">Over $100k</option>
+        </select>
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)} className={selectClass}>
+          <option value="newest" className="bg-[#0f1c35]">Newest First</option>
+          <option value="oldest" className="bg-[#0f1c35]">Oldest First</option>
+          <option value="highest" className="bg-[#0f1c35]">Highest Value</option>
+          <option value="lowest" className="bg-[#0f1c35]">Lowest Value</option>
+          <option value="activity" className="bg-[#0f1c35]">Last Activity</option>
+        </select>
+        <select value={filterActivity} onChange={e => setFilterActivity(e.target.value)} className={selectClass}>
+          <option value="" className="bg-[#0f1c35]">Any Activity</option>
+          <option value="7" className="bg-[#0f1c35]">No activity 7d</option>
+          <option value="14" className="bg-[#0f1c35]">No activity 14d</option>
+          <option value="30" className="bg-[#0f1c35]">No activity 30d</option>
+        </select>
+        {hasFilters && (
+          <button
+            onClick={clearFilters}
+            className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium text-red-400/70 border border-red-400/20 hover:text-red-400 hover:border-red-400/40 transition-colors"
+          >
+            <Filter className="w-3 h-3" /> Clear
+          </button>
+        )}
       </div>
 
       {/* Board */}
@@ -473,7 +598,7 @@ export default function PipelinePage() {
         >
           <div className="flex gap-4 h-full">
             {stages.map((stage) => {
-              const stageLeads = leads.filter((l) => l.stage_id === stage.id)
+              const stageLeads = sortedLeads.filter((l) => l.stage_id === stage.id)
               return (
                 <StageColumn
                   key={stage.id}
