@@ -94,6 +94,7 @@ export default function CampaignDetailPage() {
   const [contactSearch, setContactSearch] = useState('')
   const [addingContacts, setAddingContacts] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [activeCampaignMap, setActiveCampaignMap] = useState<Map<string, string>>(new Map())
 
   const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -292,13 +293,30 @@ export default function CampaignDetailPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const { data } = await supabase
-      .from('contacts')
-      .select('id, first_name, last_name, company, email')
-      .eq('user_id', user.id)
-      .order('first_name')
+    const [contactsRes, enrollmentsRes] = await Promise.all([
+      supabase.from('contacts').select('id, first_name, last_name, company, email').eq('user_id', user.id).order('first_name'),
+      supabase.from('campaign_contacts').select('contact_id, campaign_id').eq('status', 'active'),
+    ])
 
-    setAllContacts(data ?? [])
+    setAllContacts(contactsRes.data ?? [])
+
+    // Build map: contact_id → campaign name (for contacts in OTHER campaigns)
+    const enrollments = (enrollmentsRes.data ?? []).filter(e => e.campaign_id !== id)
+    if (enrollments.length > 0) {
+      const campIds = Array.from(new Set(enrollments.map(e => e.campaign_id)))
+      const { data: camps } = await supabase.from('email_campaigns').select('id, name').in('id', campIds)
+      const campNameMap = new Map((camps ?? []).map(c => [c.id, c.name]))
+      const map = new Map<string, string>()
+      for (const e of enrollments) {
+        if (!map.has(e.contact_id)) {
+          map.set(e.contact_id, campNameMap.get(e.campaign_id) || 'another campaign')
+        }
+      }
+      setActiveCampaignMap(map)
+    } else {
+      setActiveCampaignMap(new Map())
+    }
+
     setSelectedIds(new Set())
     setContactSearch('')
     setShowAddModal(true)
@@ -364,6 +382,17 @@ export default function CampaignDetailPage() {
       toast.error(`All ${alreadyActive} selected contact${alreadyActive !== 1 ? 's are' : ' is'} already enrolled`)
       setAddingContacts(false)
       return
+    }
+
+    // Remove contacts from any other active campaign first (one-campaign rule)
+    const allMoving = [...toReactivate, ...toInsert]
+    if (allMoving.length > 0) {
+      await supabase
+        .from('campaign_contacts')
+        .update({ status: 'removed' })
+        .eq('status', 'active')
+        .neq('campaign_id', id)
+        .in('contact_id', allMoving)
     }
 
     // Re-activate removed contacts
@@ -696,6 +725,7 @@ export default function CampaignDetailPage() {
                 if (filtered.length === 0) return <p className="text-blue-300/40 text-sm text-center py-6">No contacts found</p>
                 return filtered.map(c => {
                   const already = enrolledIds.has(c.id)
+                  const otherCampaign = activeCampaignMap.get(c.id)
                   const selected = selectedIds.has(c.id)
                   return (
                     <label
@@ -713,7 +743,11 @@ export default function CampaignDetailPage() {
                         <p className="text-sm text-white truncate">{c.first_name} {c.last_name}</p>
                         <p className="text-xs text-blue-300/50 truncate">{c.company || ''}{c.company && c.email ? ' · ' : ''}{c.email || ''}</p>
                       </div>
-                      {already && <span className="text-[10px] text-blue-300/40 shrink-0">Enrolled</span>}
+                      {already ? (
+                        <span className="text-[10px] text-blue-300/40 shrink-0">Enrolled</span>
+                      ) : otherCampaign ? (
+                        <span className="text-[10px] text-orange-400/70 shrink-0">In: {otherCampaign}</span>
+                      ) : null}
                     </label>
                   )
                 })

@@ -511,6 +511,13 @@ export default function ContactDetailPage() {
       return
     }
 
+    // Remove from any other active campaign first (one-campaign rule)
+    await supabase
+      .from('campaign_contacts')
+      .update({ status: 'removed' })
+      .eq('contact_id', id)
+      .eq('status', 'active')
+
     for (const campId of toReactivate) {
       await supabase.from('campaign_contacts').update({ status: 'active' }).eq('contact_id', id).eq('campaign_id', campId)
     }
@@ -1122,26 +1129,21 @@ export default function ContactDetailPage() {
                   return (
                     <label
                       key={c.id}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${already ? 'opacity-40' : selected ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${already ? 'bg-emerald-500/5 border border-emerald-500/20' : selected ? 'bg-white/10' : 'hover:bg-white/5'}`}
                     >
                       <input
-                        type="checkbox"
+                        type="radio"
+                        name="campaign-select"
                         checked={selected}
                         disabled={already}
-                        onChange={() => {
-                          setSelectedCampaignIds(prev => {
-                            const next = new Set(prev)
-                            if (next.has(c.id)) next.delete(c.id); else next.add(c.id)
-                            return next
-                          })
-                        }}
+                        onChange={() => setSelectedCampaignIds(new Set([c.id]))}
                         className="accent-[#d4930e] w-4 h-4"
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-white truncate">{c.name}</p>
                         <p className="text-xs text-blue-300/40 capitalize">{c.status || 'draft'}</p>
                       </div>
-                      {already && <span className="text-[10px] text-blue-300/40 shrink-0">Enrolled</span>}
+                      {already && <span className="text-[10px] text-emerald-400/70 shrink-0">Current</span>}
                     </label>
                   )
                 })
@@ -1155,7 +1157,7 @@ export default function ContactDetailPage() {
               style={{ backgroundColor: '#d4930e' }}
             >
               <Plus size={16} />
-              {addingToCampaign ? 'Adding...' : `Add to ${selectedCampaignIds.size} Campaign${selectedCampaignIds.size !== 1 ? 's' : ''}`}
+              {addingToCampaign ? 'Adding...' : enrolledCampaigns.length > 0 ? 'Move to Campaign' : 'Add to Campaign'}
             </button>
           </div>
         </div>
@@ -1172,8 +1174,11 @@ export default function ContactDetailPage() {
             <p className="text-2xl text-center">🚀</p>
             <h3 className="text-lg font-bold text-white text-center">This contact will go live immediately</h3>
             <p className="text-sm text-blue-300/70 text-center">
-              <strong className="text-white">{contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : 'Contact'}</strong> will be added to{' '}
+              <strong className="text-white">{contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : 'Contact'}</strong> will be {enrolledCampaigns.length > 0 ? 'moved' : 'added'} to{' '}
               <strong className="text-white">{liveCampaignNames.join(', ')}</strong> and their email sequence will start within 24 hours on Instantly.ai.
+              {enrolledCampaigns.length > 0 && (
+                <span className="block mt-1 text-orange-400/80">They will be removed from their current campaign.</span>
+              )}
             </p>
             <p className="text-xs text-blue-300/50 text-center">Are you sure you want to proceed?</p>
             <div className="flex items-center gap-3 pt-2">
