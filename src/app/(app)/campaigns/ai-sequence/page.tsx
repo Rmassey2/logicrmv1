@@ -45,6 +45,29 @@ const SEGMENTS = [
   'Custom',
 ]
 
+const TONES = [
+  'Direct & No-Nonsense',
+  'Friendly & Conversational',
+  'Confident & Authoritative',
+  'Empathetic',
+  'Urgent',
+  'Humorous',
+  'Professional & Formal',
+  'Persistent & Tenacious',
+  'Custom',
+] as const
+
+const TONE_DESCRIPTIONS: Record<string, string> = {
+  'Direct & No-Nonsense': 'Get to the point in the first sentence. No warm-up. Short sentences. No filler words.',
+  'Friendly & Conversational': "Write like you're emailing someone you've met once at a conference. Warm but professional.",
+  'Confident & Authoritative': "Project expertise. Use specific freight knowledge. Don't hedge.",
+  'Empathetic': 'Acknowledge their challenges first. Show you understand before pitching anything.',
+  'Urgent': 'Create a reason to act now. Reference timing, market conditions, or limited availability.',
+  'Humorous': 'One light joke or unexpected observation per email max. Never forced. Must still be professional.',
+  'Professional & Formal': 'Formal tone, complete sentences, no contractions, respectful and measured.',
+  'Persistent & Tenacious': "Acknowledge you've reached out before. Unapologetic about following up. Brief.",
+}
+
 const DAY_COLORS = [
   'text-blue-400',
   'text-purple-400',
@@ -66,8 +89,11 @@ export default function AiSequencePage() {
   const [companyName, setCompanyName] = useState('')
   const [senderName, setSenderName] = useState('Randall Massey')
   const [senderCompany, setSenderCompany] = useState('Maco Logistics')
+  const [tone, setTone] = useState<string>(TONES[0])
+  const [customTone, setCustomTone] = useState('')
 
   // Output
+  const [generatedTone, setGeneratedTone] = useState('')
   const [sequence, setSequence] = useState<TouchEmail[]>([])
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -79,6 +105,8 @@ export default function AiSequencePage() {
   const [rewriteIdx, setRewriteIdx] = useState<number | null>(null)
   const [rewritePrompt, setRewritePrompt] = useState('')
   const [rewriting, setRewriting] = useState(false)
+  const [perEmailTone, setPerEmailTone] = useState<Record<number, string>>({})
+  const [toneOverrideIdx, setToneOverrideIdx] = useState<number | null>(null)
 
   // ── Generate ───────────────────────────────────────────────────────────────
 
@@ -87,6 +115,9 @@ export default function AiSequencePage() {
     if (!painPoint.trim()) { toast.error('Enter a pain point.'); return }
     const effectiveSegment = segment === 'Custom' ? customSegment.trim() : segment
     if (!effectiveSegment) { toast.error('Enter a custom segment.'); return }
+    const effectiveTone = tone === 'Custom' ? customTone.trim() : tone
+    const toneDesc = tone === 'Custom' ? customTone.trim() : TONE_DESCRIPTIONS[tone] || tone
+    if (tone === 'Custom' && !customTone.trim()) { toast.error('Enter a custom tone.'); return }
 
     setGenerating(true)
     setSequence([])
@@ -94,6 +125,8 @@ export default function AiSequencePage() {
     setModifiedSet(new Set())
     setRewriteIdx(null)
     setRewritePrompt('')
+    setPerEmailTone({})
+    setToneOverrideIdx(null)
 
     try {
       const res = await fetch('/api/ai/sequence', {
@@ -106,6 +139,8 @@ export default function AiSequencePage() {
           companyName: companyName.trim(),
           senderName: senderName.trim(),
           senderCompany: senderCompany.trim(),
+          tone: effectiveTone,
+          toneDescription: toneDesc,
         }),
       })
 
@@ -116,6 +151,7 @@ export default function AiSequencePage() {
         toast.error(data.error ?? 'Failed to generate sequence')
       } else {
         setSequence(data.sequence)
+        setGeneratedTone(effectiveTone)
         toast.success('Sequence generated!')
       }
     } catch (err) {
@@ -146,6 +182,8 @@ export default function AiSequencePage() {
 
     try {
       const touch = sequence[idx]
+      const emailTone = perEmailTone[idx] || generatedTone
+      const emailToneDesc = TONE_DESCRIPTIONS[emailTone] || emailTone
       const res = await fetch('/api/ai/rewrite-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -153,6 +191,8 @@ export default function AiSequencePage() {
           subject: touch.subject,
           body: touch.body,
           instructions: rewritePrompt.trim(),
+          tone: emailTone,
+          toneDescription: emailToneDesc,
         }),
       })
       const data = await res.json()
@@ -279,6 +319,31 @@ export default function AiSequencePage() {
         </div>
 
         <div>
+          <label className={labelClass}>Campaign Tone</label>
+          <select
+            value={tone}
+            onChange={e => setTone(e.target.value)}
+            className={inputClass}
+          >
+            {TONES.map(t => (
+              <option key={t} value={t} className="bg-[#0f1c35]">{t}</option>
+            ))}
+          </select>
+          {tone === 'Custom' && (
+            <input
+              type="text"
+              placeholder='e.g. "Casual but data-driven, like a smart friend giving advice"'
+              value={customTone}
+              onChange={e => setCustomTone(e.target.value)}
+              className={`${inputClass} mt-2`}
+            />
+          )}
+          {tone !== 'Custom' && TONE_DESCRIPTIONS[tone] && (
+            <p className="text-blue-300/40 text-xs mt-1.5">{TONE_DESCRIPTIONS[tone]}</p>
+          )}
+        </div>
+
+        <div>
           <label className={labelClass}>Key Pain Point</label>
           <input
             type="text"
@@ -344,7 +409,14 @@ export default function AiSequencePage() {
       {sequence.length > 0 && (
         <>
           <div className="flex items-center justify-between mb-5">
-            <h3 className="text-lg font-semibold text-white">Your 7-Touch Sequence</h3>
+            <div>
+              <h3 className="text-lg font-semibold text-white">Your 7-Touch Sequence</h3>
+              {generatedTone && (
+                <p className="text-xs text-blue-300/50 mt-1">
+                  Sequence tone: <span className="text-blue-300">{generatedTone}</span>
+                </p>
+              )}
+            </div>
             <button
               onClick={handleSave}
               disabled={saving}
@@ -361,6 +433,8 @@ export default function AiSequencePage() {
               const isEditing = editingIdx === idx
               const isModified = modifiedSet.has(idx)
               const showRewrite = rewriteIdx === idx
+              const emailTone = perEmailTone[idx] || generatedTone
+              const showToneOverride = toneOverrideIdx === idx
 
               return (
                 <div
@@ -385,6 +459,11 @@ export default function AiSequencePage() {
                       {isModified && (
                         <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/15 text-purple-400 uppercase tracking-wide">
                           Modified
+                        </span>
+                      )}
+                      {perEmailTone[idx] && perEmailTone[idx] !== generatedTone && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/15 text-blue-400 uppercase tracking-wide">
+                          {perEmailTone[idx]}
                         </span>
                       )}
                     </div>
@@ -504,6 +583,32 @@ export default function AiSequencePage() {
                             Email Body
                           </label>
                           <p className="text-xs text-blue-200 whitespace-pre-wrap leading-relaxed font-mono">{touch.body}</p>
+                        </div>
+                        <div className="pt-1">
+                          <button
+                            onClick={() => setToneOverrideIdx(showToneOverride ? null : idx)}
+                            className="text-[11px] text-blue-300/50 hover:text-blue-300 transition-colors"
+                          >
+                            Tone: {emailTone} · Change
+                          </button>
+                          {showToneOverride && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <select
+                                value={perEmailTone[idx] || ''}
+                                onChange={e => {
+                                  const val = e.target.value
+                                  setPerEmailTone(prev => val ? { ...prev, [idx]: val } : (() => { const next = { ...prev }; delete next[idx]; return next })())
+                                  setToneOverrideIdx(null)
+                                }}
+                                className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/50"
+                              >
+                                <option value="" className="bg-[#0f1c35]">Use sequence tone ({generatedTone})</option>
+                                {TONES.filter(t => t !== 'Custom').map(t => (
+                                  <option key={t} value={t} className="bg-[#0f1c35]">{t}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
                         </div>
                       </>
                     )}

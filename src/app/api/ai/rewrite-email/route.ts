@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
   try {
-    const { subject, body, instructions } = await req.json()
+    const { subject, body, instructions, tone, toneDescription } = await req.json()
 
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
@@ -10,6 +10,7 @@ export async function POST(req: NextRequest) {
     const systemPrompt = `You are an expert cold email rewriter for Maco Logistics, a national freight brokerage. You will be given an existing cold email and instructions for how to change it. Rewrite the email following the instructions while keeping it short, conversational, and effective. 3-5 sentences max for the body. Keep the same general structure unless told otherwise.
 
 CRITICAL: Never mention industry labels, segment names, or category names (like "manufacturers", "distributors", "retailers") in the email copy. Write naturally as if speaking directly to one person. Use "you", "your team", "your freight" instead.
+${tone ? `\nWrite in this tone: ${tone}. ${toneDescription}. The tone should feel natural and human.` : ''}
 
 Return ONLY valid JSON with this structure:
 {"subject": "rewritten subject line", "body": "rewritten email body"}

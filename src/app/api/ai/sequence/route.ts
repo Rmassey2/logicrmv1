@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
   try {
-    const { segment, contactTitle, painPoint, companyName, senderName, senderCompany } = await req.json()
+    const { segment, contactTitle, painPoint, companyName, senderName, senderCompany, tone, toneDescription } = await req.json()
 
     if (!segment || !contactTitle || !painPoint) {
       return NextResponse.json({ error: 'segment, contactTitle, and painPoint are required' }, { status: 400 })
@@ -26,6 +26,7 @@ Rules:
 - Use the sender's real name and company
 - Include merge tags {{first_name}} and {{company}} where appropriate
 - CRITICAL: Never mention the segment name or industry label in the email copy. Write naturally as if speaking directly to one person. Use "you", "your team", "your freight" — never say "manufacturers", "distributors", "retailers", or any industry category name. The segment only influences which pain points and context you use, it must never appear in the actual email text.
+${tone ? `\nWrite all emails in this tone: ${tone}. ${toneDescription}. The tone should feel natural and human — never robotic or templated. Each email should sound like it was written by the same person but adapted to the context of that touch.` : ''}
 
 You must output valid JSON only — no markdown, no code fences, no explanation. Return an array of exactly 7 objects with this structure:
 [
