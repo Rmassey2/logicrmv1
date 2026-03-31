@@ -114,6 +114,7 @@ export default function CampaignDetailPage() {
       .from('campaign_contacts')
       .select('id, contact_id, status')
       .eq('campaign_id', id)
+      .eq('status', 'active')
 
     if (enrollments && enrollments.length > 0) {
       const contactIds = enrollments.map(e => e.contact_id)
@@ -233,17 +234,19 @@ export default function CampaignDetailPage() {
 
   // ── Remove contact ─────────────────────────────────────────────────────────
 
-  async function handleRemoveContact(enrollmentId: string) {
+  async function handleRemoveContact(enrollmentId: string, contactName: string) {
+    if (!confirm(`Remove ${contactName} from this campaign?`)) return
+
     const { error } = await supabase
       .from('campaign_contacts')
-      .delete()
+      .update({ status: 'removed' })
       .eq('id', enrollmentId)
 
     if (error) {
       toast.error('Failed to remove contact')
     } else {
       setContacts(prev => prev.filter(c => c.id !== enrollmentId))
-      toast.success('Contact removed')
+      toast.success('Contact removed from campaign')
     }
   }
 
@@ -490,7 +493,7 @@ export default function CampaignDetailPage() {
                       </td>
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         <button
-                          onClick={() => handleRemoveContact(c.id)}
+                          onClick={() => handleRemoveContact(c.id, [c.first_name, c.last_name].filter(Boolean).join(' ') || 'Unnamed')}
                           className="text-blue-300/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
                           title="Remove from campaign"
                         >

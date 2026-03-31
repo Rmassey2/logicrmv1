@@ -218,6 +218,7 @@ export default function ContactDetailPage() {
         .from('campaign_contacts')
         .select('campaign_id, created_at')
         .eq('contact_id', id)
+        .eq('status', 'active')
 
       if (enrollments && enrollments.length > 0) {
         const campIds = enrollments.map(e => e.campaign_id)
@@ -486,6 +487,24 @@ export default function ContactDetailPage() {
       setShowCampaignModal(false)
     }
     setAddingToCampaign(false)
+  }
+
+  async function handleRemoveFromCampaign(campaignId: string, campaignName: string) {
+    const contactFullName = contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : 'this contact'
+    if (!confirm(`Remove ${contactFullName} from ${campaignName}?`)) return
+
+    const { error } = await supabase
+      .from('campaign_contacts')
+      .update({ status: 'removed' })
+      .eq('contact_id', id)
+      .eq('campaign_id', campaignId)
+
+    if (error) {
+      toast.error('Failed to remove from campaign')
+    } else {
+      setEnrolledCampaigns(prev => prev.filter(c => c.campaign_id !== campaignId))
+      toast.success('Removed from campaign')
+    }
   }
 
   // ── Send Email ──────────────────────────────────────────────────────────
@@ -950,15 +969,26 @@ export default function ContactDetailPage() {
         ) : (
           <div className="space-y-2">
             {enrolledCampaigns.map(ec => (
-              <Link
+              <div
                 key={ec.campaign_id}
-                href={`/campaigns/${ec.campaign_id}`}
-                className="block rounded-xl p-4 hover:opacity-80 transition-opacity"
+                className="flex items-center gap-2 rounded-xl p-4 group"
                 style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.07)' }}
               >
-                <p className="text-sm font-medium" style={{ color: '#d4930e' }}>{ec.name}</p>
-                <p className="text-xs text-blue-300/40 mt-1">Enrolled {formatShortDate(ec.created_at)}</p>
-              </Link>
+                <Link
+                  href={`/campaigns/${ec.campaign_id}`}
+                  className="flex-1 min-w-0 hover:opacity-80 transition-opacity"
+                >
+                  <p className="text-sm font-medium" style={{ color: '#d4930e' }}>{ec.name}</p>
+                  <p className="text-xs text-blue-300/40 mt-1">Enrolled {formatShortDate(ec.created_at)}</p>
+                </Link>
+                <button
+                  onClick={() => handleRemoveFromCampaign(ec.campaign_id, ec.name)}
+                  className="text-blue-300/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                  title="Remove from campaign"
+                >
+                  <X size={16} />
+                </button>
+              </div>
             ))}
           </div>
         )}
