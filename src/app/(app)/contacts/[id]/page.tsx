@@ -215,25 +215,27 @@ export default function ContactDetailPage() {
         setCompanyId(compMatch?.id ?? null)
       }
 
-      // Load enrolled campaigns
-      const { data: enrollments } = await supabase
+      // Load enrolled campaigns using Supabase join
+      const { data: enrollments, error: enrollErr } = await supabase
         .from('campaign_contacts')
-        .select('campaign_id, created_at')
+        .select('campaign_id, created_at, email_campaigns(id, name)')
         .eq('contact_id', id)
         .eq('status', 'active')
 
+      console.log('[contact] Campaign enrollments:', enrollments, 'error:', enrollErr)
+
       if (enrollments && enrollments.length > 0) {
-        const campIds = enrollments.map(e => e.campaign_id)
-        const { data: campData } = await supabase
-          .from('email_campaigns')
-          .select('id, name')
-          .in('id', campIds)
-        const campMap = new Map((campData ?? []).map(c => [c.id, c.name]))
-        setEnrolledCampaigns(enrollments.map(e => ({
-          campaign_id: e.campaign_id,
-          name: campMap.get(e.campaign_id) || 'Unknown',
-          created_at: e.created_at,
-        })))
+        type EnrollmentRow = { campaign_id: string; created_at: string; email_campaigns: { id: string; name: string } | { id: string; name: string }[] | null }
+        setEnrolledCampaigns((enrollments as EnrollmentRow[]).map(e => {
+          const camp = Array.isArray(e.email_campaigns) ? e.email_campaigns[0] : e.email_campaigns
+          return {
+            campaign_id: e.campaign_id,
+            name: camp?.name || 'Unknown',
+            created_at: e.created_at,
+          }
+        }))
+      } else {
+        setEnrolledCampaigns([])
       }
 
       setLoading(false)
