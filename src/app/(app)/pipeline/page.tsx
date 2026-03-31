@@ -320,7 +320,6 @@ export default function PipelinePage() {
 
   // Filters
   const [search, setSearch] = useState('')
-  const [filterStage, setFilterStage] = useState('')
   const [filterValue, setFilterValue] = useState('')
   const [sortBy, setSortBy] = useState('newest')
   const [filterActivity, setFilterActivity] = useState('')
@@ -518,11 +517,10 @@ export default function PipelinePage() {
 
   // ── Filter & sort logic ─────────────────────────────────────────────────
 
-  const hasFilters = search || filterStage || filterValue || sortBy !== 'newest' || filterActivity || filterRep
+  const hasFilters = search || filterValue || sortBy !== 'newest' || filterActivity || filterRep
 
   function clearFilters() {
     setSearch('')
-    setFilterStage('')
     setFilterValue('')
     setSortBy('newest')
     setFilterActivity('')
@@ -540,8 +538,6 @@ export default function PipelinePage() {
       const title = l.title.toLowerCase()
       if (!contactName.includes(q) && !company.includes(q) && !title.includes(q)) return false
     }
-    // Stage
-    if (filterStage && l.stage_id !== filterStage) return false
     // Value
     if (filterValue) {
       const v = l.value ?? 0
@@ -623,10 +619,6 @@ export default function PipelinePage() {
             className="bg-white/5 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-blue-300/40 focus:outline-none focus:ring-2 focus:ring-yellow-500/50 w-48"
           />
         </div>
-        <select value={filterStage} onChange={e => setFilterStage(e.target.value)} className={selectClass}>
-          <option value="" className="bg-[#0f1c35]">All Stages</option>
-          {stages.map(s => <option key={s.id} value={s.id} className="bg-[#0f1c35]">{s.name}</option>)}
-        </select>
         <select value={filterValue} onChange={e => setFilterValue(e.target.value)} className={selectClass}>
           <option value="" className="bg-[#0f1c35]">Any Value</option>
           <option value="under10k" className="bg-[#0f1c35]">Under $10k</option>
