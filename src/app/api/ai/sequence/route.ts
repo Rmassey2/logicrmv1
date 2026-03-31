@@ -46,7 +46,7 @@ Touch 3 (Day 5): Social proof story — mention a similar company you helped (ma
 Touch 4 (Day 8): The "one lane" offer — ask for just one lane to prove yourself
 Touch 5 (Day 12): Market insight / rate trends — share a freight market observation relevant to their segment
 Touch 6 (Day 16): Case study or result — specific numbers (e.g. "saved 18% on their Memphis to Dallas lane")
-Touch 7 (Day 21): Breakup email — final touch, casual, "closing the file"`
+Touch 7 (Day 21): Final email — last touch, leave the door open naturally. Do NOT say "closing your file" or any corporate-sounding phrase. Use natural, human language like "I'll stop showing up in your inbox after this one" or "Last one from me — promise" or "Timing isn't always right — no hard feelings." Always end this email with Maco's tagline naturally woven in: "We don't book loads we can't cover. All 48 states." Never sound corporate, never say closing, filing, or archiving anything.`
 
     const userPrompt = `Write a 7-touch cold email sequence for:
 
