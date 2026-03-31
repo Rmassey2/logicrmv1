@@ -45,12 +45,20 @@ interface Lead {
   value: number | null
   contact_id: string | null
   created_at: string
+  user_id?: string
   last_activity_at?: string | null
+  rep_name?: string
   contact?: {
     first_name: string | null
     last_name: string | null
     company: string | null
   }
+}
+
+interface OrgMember {
+  user_id: string
+  name: string
+  role: string
 }
 
 interface ContactOption {
@@ -112,6 +120,9 @@ function LeadCard({ lead, isDragOverlay }: { lead: Lead; isDragOverlay?: boolean
             <p className="text-xs font-semibold mt-1.5" style={{ color: '#d4930e' }}>
               ${lead.value.toLocaleString()}
             </p>
+          )}
+          {lead.rep_name && (
+            <p className="text-[10px] text-blue-300/40 mt-1 truncate">{lead.rep_name}</p>
           )}
         </Link>
       </div>
@@ -303,6 +314,9 @@ export default function PipelinePage() {
   const [contacts, setContacts] = useState<ContactOption[]>([])
   const [modalStageId, setModalStageId] = useState<string | null>(null)
   const [activeLead, setActiveLead] = useState<Lead | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [orgMembers, setOrgMembers] = useState<OrgMember[]>([])
+  const [filterRep, setFilterRep] = useState('')
 
   // Filters
   const [search, setSearch] = useState('')
@@ -319,56 +333,109 @@ export default function PipelinePage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth/login'); return }
 
-    const [stagesRes, leadsRes, contactsRes, activitiesRes] = await Promise.all([
+    // Check role via API
+    const orgRes = await fetch('/api/pipeline/org-deals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: user.id }),
+    })
+    const orgData = await orgRes.json()
+    const userIsAdmin = orgData.role === 'admin'
+    setIsAdmin(userIsAdmin)
+
+    if (userIsAdmin && orgData.members) {
+      setOrgMembers(orgData.members)
+    }
+
+    // Stages + contacts always from own user (stages are per-user, contacts for add-deal modal)
+    const [stagesRes, contactsRes] = await Promise.all([
       supabase
         .from('pipeline_stages')
         .select('id, name, position')
         .eq('user_id', user.id)
         .order('position', { ascending: true }),
       supabase
-        .from('leads')
-        .select('id, title, stage_id, value, contact_id, created_at, contact:contacts(first_name, last_name, company)')
-        .eq('user_id', user.id),
-      supabase
         .from('contacts')
         .select('id, first_name, last_name, company')
         .eq('user_id', user.id)
         .order('first_name', { ascending: true }),
-      supabase
-        .from('activities')
-        .select('contact_id, created_at')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false }),
     ])
 
-    // Build map: contact_id → latest activity date
-    const activityMap = new Map<string, string>()
-    for (const a of (activitiesRes.data ?? [])) {
-      if (a.contact_id && !activityMap.has(a.contact_id)) {
-        activityMap.set(a.contact_id, a.created_at)
+    setStages(stagesRes.data ?? [])
+    setContacts(contactsRes.data ?? [])
+
+    if (userIsAdmin && orgData.leads) {
+      // Admin: use org-wide leads from API
+      const repNameMap = new Map<string, string>(
+        (orgData.members as OrgMember[]).map((m: OrgMember) => [m.user_id, m.name])
+      )
+
+      const activityMap = new Map<string, string>()
+      for (const a of (orgData.activities ?? [])) {
+        if (a.contact_id && !activityMap.has(a.contact_id)) {
+          activityMap.set(a.contact_id, a.created_at)
+        }
       }
+
+      const rawLeads = (orgData.leads ?? []) as Array<Record<string, unknown>>
+      setLeads(
+        rawLeads.map((l) => ({
+          id: l.id as string,
+          title: l.title as string,
+          stage_id: l.stage_id as string,
+          value: l.value as number | null,
+          contact_id: l.contact_id as string | null,
+          created_at: l.created_at as string,
+          user_id: l.user_id as string,
+          last_activity_at: l.contact_id ? activityMap.get(l.contact_id as string) ?? null : null,
+          rep_name: repNameMap.get(l.user_id as string) ?? undefined,
+          contact: l.contact
+            ? Array.isArray(l.contact)
+              ? (l.contact[0] as Lead['contact'])
+              : (l.contact as Lead['contact'])
+            : undefined,
+        }))
+      )
+    } else {
+      // Rep: own deals only
+      const [leadsRes, activitiesRes] = await Promise.all([
+        supabase
+          .from('leads')
+          .select('id, title, stage_id, value, contact_id, created_at, contact:contacts(first_name, last_name, company)')
+          .eq('user_id', user.id),
+        supabase
+          .from('activities')
+          .select('contact_id, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false }),
+      ])
+
+      const activityMap = new Map<string, string>()
+      for (const a of (activitiesRes.data ?? [])) {
+        if (a.contact_id && !activityMap.has(a.contact_id)) {
+          activityMap.set(a.contact_id, a.created_at)
+        }
+      }
+
+      const rawLeads = (leadsRes.data ?? []) as Array<Record<string, unknown>>
+      setLeads(
+        rawLeads.map((l) => ({
+          id: l.id as string,
+          title: l.title as string,
+          stage_id: l.stage_id as string,
+          value: l.value as number | null,
+          contact_id: l.contact_id as string | null,
+          created_at: l.created_at as string,
+          last_activity_at: l.contact_id ? activityMap.get(l.contact_id as string) ?? null : null,
+          contact: l.contact
+            ? Array.isArray(l.contact)
+              ? (l.contact[0] as Lead['contact'])
+              : (l.contact as Lead['contact'])
+            : undefined,
+        }))
+      )
     }
 
-    setStages(stagesRes.data ?? [])
-    // Supabase returns joined relations as objects (single) or arrays; normalize
-    const rawLeads = (leadsRes.data ?? []) as Array<Record<string, unknown>>
-    setLeads(
-      rawLeads.map((l) => ({
-        id: l.id as string,
-        title: l.title as string,
-        stage_id: l.stage_id as string,
-        value: l.value as number | null,
-        contact_id: l.contact_id as string | null,
-        created_at: l.created_at as string,
-        last_activity_at: l.contact_id ? activityMap.get(l.contact_id as string) ?? null : null,
-        contact: l.contact
-          ? Array.isArray(l.contact)
-            ? (l.contact[0] as Lead['contact'])
-            : (l.contact as Lead['contact'])
-          : undefined,
-      }))
-    )
-    setContacts(contactsRes.data ?? [])
     setLoading(false)
   }, [router])
 
@@ -451,7 +518,7 @@ export default function PipelinePage() {
 
   // ── Filter & sort logic ─────────────────────────────────────────────────
 
-  const hasFilters = search || filterStage || filterValue || sortBy !== 'newest' || filterActivity
+  const hasFilters = search || filterStage || filterValue || sortBy !== 'newest' || filterActivity || filterRep
 
   function clearFilters() {
     setSearch('')
@@ -459,9 +526,12 @@ export default function PipelinePage() {
     setFilterValue('')
     setSortBy('newest')
     setFilterActivity('')
+    setFilterRep('')
   }
 
   const filteredLeads = leads.filter(l => {
+    // Salesperson
+    if (filterRep && l.user_id !== filterRep) return false
     // Search
     if (search) {
       const q = search.toLowerCase()
@@ -577,6 +647,14 @@ export default function PipelinePage() {
           <option value="14" className="bg-[#0f1c35]">No activity 14d</option>
           <option value="30" className="bg-[#0f1c35]">No activity 30d</option>
         </select>
+        {isAdmin && orgMembers.length > 0 && (
+          <select value={filterRep} onChange={e => setFilterRep(e.target.value)} className={selectClass}>
+            <option value="" className="bg-[#0f1c35]">All Reps</option>
+            {orgMembers.map(m => (
+              <option key={m.user_id} value={m.user_id} className="bg-[#0f1c35]">{m.name}</option>
+            ))}
+          </select>
+        )}
         {hasFilters && (
           <button
             onClick={clearFilters}
