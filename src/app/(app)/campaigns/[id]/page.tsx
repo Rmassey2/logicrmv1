@@ -92,6 +92,7 @@ export default function CampaignDetailPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [contactSearch, setContactSearch] = useState('')
   const [addingContacts, setAddingContacts] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -276,14 +277,25 @@ export default function CampaignDetailPage() {
     })
   }
 
-  async function handleAddContacts() {
+  function handleAddContactsClick() {
+    if (selectedIds.size === 0) return
+    // If campaign is live on Instantly, show confirmation
+    if (campaign?.instantly_campaign_id) {
+      setShowConfirm(true)
+    } else {
+      doAddContacts()
+    }
+  }
+
+  async function doAddContacts() {
+    setShowConfirm(false)
     if (selectedIds.size === 0) return
     setAddingContacts(true)
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Server-side dedup: check for ANY existing enrollment (active or removed)
+    // Server-side dedup
     const { data: existingRows } = await supabase
       .from('campaign_contacts')
       .select('contact_id, status')
@@ -296,9 +308,9 @@ export default function CampaignDetailPage() {
 
     for (const cid of Array.from(selectedIds)) {
       const status = existingMap.get(cid)
-      if (status === 'active') continue // already enrolled
-      if (status === 'removed') toReactivate.push(cid) // re-enroll
-      else toInsert.push(cid) // new enrollment
+      if (status === 'active') continue
+      if (status === 'removed') toReactivate.push(cid)
+      else toInsert.push(cid)
     }
 
     if (toReactivate.length === 0 && toInsert.length === 0) {
@@ -328,8 +340,31 @@ export default function CampaignDetailPage() {
       }
     }
 
-    const totalAdded = toReactivate.length + toInsert.length
-    toast.success(`${totalAdded} contact${totalAdded !== 1 ? 's' : ''} added`)
+    const allAdded = [...toReactivate, ...toInsert]
+    const totalAdded = allAdded.length
+
+    // Push to Instantly if campaign is live
+    if (campaign?.instantly_campaign_id) {
+      let pushFailed = 0
+      for (const contactId of allAdded) {
+        try {
+          const res = await fetch('/api/instantly/push-contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contact_id: contactId, instantly_campaign_id: campaign.instantly_campaign_id }),
+          })
+          if (!res.ok) pushFailed++
+        } catch { pushFailed++ }
+      }
+      if (pushFailed > 0) {
+        toast.error(`${pushFailed} contact${pushFailed !== 1 ? 's' : ''} saved but Instantly push failed. Try pushing manually.`, { duration: 5000 })
+      } else {
+        toast.success(`${totalAdded} contact${totalAdded !== 1 ? 's' : ''} added and live on Instantly!`)
+      }
+    } else {
+      toast.success(`${totalAdded} contact${totalAdded !== 1 ? 's' : ''} added (not pushed to Instantly — campaign not launched yet)`)
+    }
+
     setShowAddModal(false)
     loadData()
     setAddingContacts(false)
@@ -595,7 +630,7 @@ export default function CampaignDetailPage() {
             </div>
 
             <button
-              onClick={handleAddContacts}
+              onClick={handleAddContactsClick}
               disabled={selectedIds.size === 0 || addingContacts}
               className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 disabled:opacity-40 transition-colors"
               style={{ backgroundColor: '#d4930e' }}
@@ -603,6 +638,40 @@ export default function CampaignDetailPage() {
               <Plus className="w-4 h-4" />
               {addingContacts ? 'Adding...' : `Add ${selectedIds.size} Contact${selectedIds.size !== 1 ? 's' : ''}`}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm Launch Modal ── */}
+      {showConfirm && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.8)' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowConfirm(false) }}
+        >
+          <div className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <p className="text-2xl text-center">🚀</p>
+            <h3 className="text-lg font-bold text-white text-center">This contact will go live immediately</h3>
+            <p className="text-sm text-blue-300/70 text-center">
+              {selectedIds.size} contact{selectedIds.size !== 1 ? 's' : ''} will be added to <strong className="text-white">{campaign?.name}</strong> and their email sequence will start within 24 hours on Instantly.ai.
+            </p>
+            <p className="text-xs text-blue-300/50 text-center">Are you sure you want to proceed?</p>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={doAddContacts}
+                disabled={addingContacts}
+                className="flex-1 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 disabled:opacity-60 transition-colors"
+                style={{ backgroundColor: '#d4930e' }}
+              >
+                {addingContacts ? 'Adding...' : 'Yes, Add & Launch'}
+              </button>
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="flex-1 py-2.5 rounded-lg font-semibold text-sm text-blue-300 border border-white/10 hover:text-white hover:border-white/20 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

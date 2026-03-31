@@ -157,11 +157,13 @@ export default function ContactDetailPage() {
 
   // Add to Campaign
   const [showCampaignModal, setShowCampaignModal] = useState(false)
-  const [allCampaigns, setAllCampaigns] = useState<{ id: string; name: string; status: string | null }[]>([])
+  const [allCampaigns, setAllCampaigns] = useState<{ id: string; name: string; status: string | null; instantly_campaign_id: string | null }[]>([])
   const [enrolledCampaigns, setEnrolledCampaigns] = useState<{ campaign_id: string; name: string; created_at: string }[]>([])
   const [selectedCampaignIds, setSelectedCampaignIds] = useState<Set<string>>(new Set())
   const [campaignSearch, setCampaignSearch] = useState('')
   const [addingToCampaign, setAddingToCampaign] = useState(false)
+  const [showCampaignConfirm, setShowCampaignConfirm] = useState(false)
+  const [liveCampaignNames, setLiveCampaignNames] = useState<string[]>([])
 
   // AI Call Prep
   const [showCallPrep, setShowCallPrep] = useState(false)
@@ -440,7 +442,7 @@ export default function ContactDetailPage() {
 
     const { data } = await supabase
       .from('email_campaigns')
-      .select('id, name, status')
+      .select('id, name, status, instantly_campaign_id')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -450,11 +452,26 @@ export default function ContactDetailPage() {
     setShowCampaignModal(true)
   }
 
-  async function handleAddToCampaigns() {
+  function handleAddToCampaignsClick() {
+    if (selectedCampaignIds.size === 0) return
+    // Check if any selected campaigns are live on Instantly
+    const liveNames = allCampaigns
+      .filter(c => selectedCampaignIds.has(c.id) && c.instantly_campaign_id)
+      .map(c => c.name)
+    if (liveNames.length > 0) {
+      setLiveCampaignNames(liveNames)
+      setShowCampaignConfirm(true)
+    } else {
+      doAddToCampaigns()
+    }
+  }
+
+  async function doAddToCampaigns() {
+    setShowCampaignConfirm(false)
     if (selectedCampaignIds.size === 0) return
     setAddingToCampaign(true)
 
-    // Server-side dedup: check for ANY existing enrollment (active or removed)
+    // Server-side dedup
     const { data: existingRows } = await supabase
       .from('campaign_contacts')
       .select('campaign_id, status')
@@ -478,12 +495,10 @@ export default function ContactDetailPage() {
       return
     }
 
-    // Re-activate removed enrollments
     for (const campId of toReactivate) {
       await supabase.from('campaign_contacts').update({ status: 'active' }).eq('contact_id', id).eq('campaign_id', campId)
     }
 
-    // Insert new enrollments
     if (toInsert.length > 0) {
       const rows = toInsert.map(campaign_id => ({
         campaign_id,
@@ -500,19 +515,46 @@ export default function ContactDetailPage() {
     }
 
     const allNewIds = [...toReactivate, ...toInsert]
-    {
-      const campMap = new Map(allCampaigns.map(c => [c.id, c.name]))
-      setEnrolledCampaigns(prev => [
-        ...prev,
-        ...allNewIds.map(cid => ({
-          campaign_id: cid,
-          name: campMap.get(cid) || 'Unknown',
-          created_at: new Date().toISOString(),
-        })),
-      ])
-      toast.success(`Added to ${allNewIds.length} campaign${allNewIds.length !== 1 ? 's' : ''}`)
-      setShowCampaignModal(false)
+
+    // Push to Instantly for live campaigns
+    const contactName = contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : 'Contact'
+    let pushFailed = 0
+    for (const campId of allNewIds) {
+      const camp = allCampaigns.find(c => c.id === campId)
+      if (camp?.instantly_campaign_id) {
+        try {
+          const res = await fetch('/api/instantly/push-contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contact_id: id, instantly_campaign_id: camp.instantly_campaign_id }),
+          })
+          if (!res.ok) pushFailed++
+        } catch { pushFailed++ }
+      }
     }
+
+    const campMap = new Map(allCampaigns.map(c => [c.id, c.name]))
+    setEnrolledCampaigns(prev => [
+      ...prev,
+      ...allNewIds.map(cid => ({
+        campaign_id: cid,
+        name: campMap.get(cid) || 'Unknown',
+        created_at: new Date().toISOString(),
+      })),
+    ])
+
+    if (pushFailed > 0) {
+      toast.error(`${contactName} saved but Instantly push failed for ${pushFailed} campaign${pushFailed !== 1 ? 's' : ''}. Try pushing manually.`, { duration: 5000 })
+    } else {
+      const hasLive = allNewIds.some(cid => allCampaigns.find(c => c.id === cid)?.instantly_campaign_id)
+      if (hasLive) {
+        toast.success(`${contactName} added and live on Instantly! Sequence starts within 24 hours.`)
+      } else {
+        toast.success(`Added to ${allNewIds.length} campaign${allNewIds.length !== 1 ? 's' : ''}`)
+      }
+    }
+
+    setShowCampaignModal(false)
     setAddingToCampaign(false)
   }
 
@@ -1085,7 +1127,7 @@ export default function ContactDetailPage() {
             </div>
 
             <button
-              onClick={handleAddToCampaigns}
+              onClick={handleAddToCampaignsClick}
               disabled={selectedCampaignIds.size === 0 || addingToCampaign}
               className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 disabled:opacity-40 transition-colors"
               style={{ backgroundColor: '#d4930e' }}
@@ -1093,6 +1135,41 @@ export default function ContactDetailPage() {
               <Plus size={16} />
               {addingToCampaign ? 'Adding...' : `Add to ${selectedCampaignIds.size} Campaign${selectedCampaignIds.size !== 1 ? 's' : ''}`}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm Campaign Launch Modal ── */}
+      {showCampaignConfirm && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.8)' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowCampaignConfirm(false) }}
+        >
+          <div className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <p className="text-2xl text-center">🚀</p>
+            <h3 className="text-lg font-bold text-white text-center">This contact will go live immediately</h3>
+            <p className="text-sm text-blue-300/70 text-center">
+              <strong className="text-white">{contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : 'Contact'}</strong> will be added to{' '}
+              <strong className="text-white">{liveCampaignNames.join(', ')}</strong> and their email sequence will start within 24 hours on Instantly.ai.
+            </p>
+            <p className="text-xs text-blue-300/50 text-center">Are you sure you want to proceed?</p>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={doAddToCampaigns}
+                disabled={addingToCampaign}
+                className="flex-1 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 disabled:opacity-60 transition-colors"
+                style={{ backgroundColor: '#d4930e' }}
+              >
+                {addingToCampaign ? 'Adding...' : 'Yes, Add & Launch'}
+              </button>
+              <button
+                onClick={() => setShowCampaignConfirm(false)}
+                className="flex-1 py-2.5 rounded-lg font-semibold text-sm text-blue-300 border border-white/10 hover:text-white hover:border-white/20 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
