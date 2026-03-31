@@ -91,9 +91,18 @@ function LeadCard({ lead, isDragOverlay }: { lead: Lead; isDragOverlay?: boolean
         </div>
         <Link href={`/pipeline/${lead.id}`} className="min-w-0 flex-1" onClick={e => { if (isDragging) e.preventDefault() }}>
           <p className="text-sm font-medium text-white truncate">{lead.title}</p>
-          {contactName && (
+          {contactName && lead.contact_id ? (
+            <Link
+              href={`/contacts/${lead.contact_id}`}
+              onClick={e => e.stopPropagation()}
+              className="block text-xs mt-0.5 truncate underline decoration-[#d4930e]/40 underline-offset-2 hover:decoration-[#d4930e] transition-colors"
+              style={{ color: '#d4930e' }}
+            >
+              {contactName}
+            </Link>
+          ) : contactName ? (
             <p className="text-xs text-blue-300/60 mt-0.5 truncate">{contactName}</p>
-          )}
+          ) : null}
           {lead.contact?.company && (
             <p className="text-xs text-blue-300/40 truncate">{lead.contact.company}</p>
           )}
