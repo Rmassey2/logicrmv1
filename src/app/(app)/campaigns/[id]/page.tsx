@@ -19,6 +19,9 @@ import {
   Pause,
   RefreshCw,
   Trash2,
+  Plus,
+  Search,
+  X,
 } from 'lucide-react'
 
 const supabase = createClient(
@@ -82,6 +85,13 @@ export default function CampaignDetailPage() {
   const [launching, setLaunching] = useState(false)
   const [pausing, setPausing] = useState(false)
   const [syncing, setSyncing] = useState(false)
+
+  // Add contacts modal
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [allContacts, setAllContacts] = useState<{ id: string; first_name: string; last_name: string; company: string; email: string }[]>([])
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [contactSearch, setContactSearch] = useState('')
+  const [addingContacts, setAddingContacts] = useState(false)
 
   const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -237,6 +247,66 @@ export default function CampaignDetailPage() {
     }
   }
 
+  // ── Add contacts modal ─────────────────────────────────────────────────────
+
+  async function openAddModal() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data } = await supabase
+      .from('contacts')
+      .select('id, first_name, last_name, company, email')
+      .eq('user_id', user.id)
+      .order('first_name')
+
+    setAllContacts(data ?? [])
+    setSelectedIds(new Set())
+    setContactSearch('')
+    setShowAddModal(true)
+  }
+
+  function toggleContactSelection(cid: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(cid)) next.delete(cid); else next.add(cid)
+      return next
+    })
+  }
+
+  async function handleAddContacts() {
+    if (selectedIds.size === 0) return
+    setAddingContacts(true)
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const enrolledIds = new Set(contacts.map(c => c.contact_id))
+    const newIds = Array.from(selectedIds).filter(cid => !enrolledIds.has(cid))
+
+    if (newIds.length === 0) {
+      toast.error('All selected contacts are already enrolled')
+      setAddingContacts(false)
+      return
+    }
+
+    const rows = newIds.map(contact_id => ({
+      campaign_id: id,
+      contact_id,
+      user_id: user.id,
+      status: 'active',
+    }))
+
+    const { error } = await supabase.from('campaign_contacts').insert(rows)
+    if (error) {
+      toast.error('Failed to add contacts: ' + error.message)
+    } else {
+      toast.success(`${newIds.length} contact${newIds.length !== 1 ? 's' : ''} added`)
+      setShowAddModal(false)
+      loadData()
+    }
+    setAddingContacts(false)
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   if (loading) {
@@ -296,6 +366,12 @@ export default function CampaignDetailPage() {
 
           {/* Action buttons */}
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={openAddModal}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm text-blue-300 border border-white/10 hover:text-white hover:border-white/20 transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Add Contacts
+            </button>
             {isDraft && (
               <button
                 onClick={handleLaunch}
@@ -429,6 +505,79 @@ export default function CampaignDetailPage() {
           </div>
         )}
       </div>
+
+      {/* ── Add Contacts Modal ── */}
+      {showAddModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowAddModal(false) }}
+        >
+          <div className="w-full max-w-lg rounded-2xl p-6 space-y-4 max-h-[80vh] flex flex-col" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-white">Add Contacts to Campaign</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-blue-300/50 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-blue-300/40" />
+              <input
+                type="text"
+                placeholder="Search by name, company, or email..."
+                value={contactSearch}
+                onChange={e => setContactSearch(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white placeholder-blue-300/40 focus:outline-none focus:ring-2 focus:ring-yellow-500/50"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+              {(() => {
+                const enrolledIds = new Set(contacts.map(c => c.contact_id))
+                const q = contactSearch.toLowerCase()
+                const filtered = allContacts.filter(c => {
+                  const name = `${c.first_name} ${c.last_name}`.toLowerCase()
+                  return name.includes(q) || (c.company || '').toLowerCase().includes(q) || (c.email || '').toLowerCase().includes(q)
+                })
+                if (filtered.length === 0) return <p className="text-blue-300/40 text-sm text-center py-6">No contacts found</p>
+                return filtered.map(c => {
+                  const already = enrolledIds.has(c.id)
+                  const selected = selectedIds.has(c.id)
+                  return (
+                    <label
+                      key={c.id}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${already ? 'opacity-40' : selected ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        disabled={already}
+                        onChange={() => toggleContactSelection(c.id)}
+                        className="accent-[#d4930e] w-4 h-4"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white truncate">{c.first_name} {c.last_name}</p>
+                        <p className="text-xs text-blue-300/50 truncate">{c.company || ''}{c.company && c.email ? ' · ' : ''}{c.email || ''}</p>
+                      </div>
+                      {already && <span className="text-[10px] text-blue-300/40 shrink-0">Enrolled</span>}
+                    </label>
+                  )
+                })
+              })()}
+            </div>
+
+            <button
+              onClick={handleAddContacts}
+              disabled={selectedIds.size === 0 || addingContacts}
+              className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 disabled:opacity-40 transition-colors"
+              style={{ backgroundColor: '#d4930e' }}
+            >
+              <Plus className="w-4 h-4" />
+              {addingContacts ? 'Adding...' : `Add ${selectedIds.size} Contact${selectedIds.size !== 1 ? 's' : ''}`}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <p className="text-center text-blue-400/50 text-xs mt-16">

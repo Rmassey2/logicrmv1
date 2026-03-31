@@ -31,6 +31,8 @@ import {
   Check,
   MessageSquare,
   FileText,
+  Search,
+  Send,
 } from 'lucide-react'
 
 const supabase = createClient(
@@ -152,6 +154,14 @@ export default function ContactDetailPage() {
   const [sendBody, setSendBody] = useState('')
   const [sending, setSending] = useState(false)
 
+  // Add to Campaign
+  const [showCampaignModal, setShowCampaignModal] = useState(false)
+  const [allCampaigns, setAllCampaigns] = useState<{ id: string; name: string; status: string | null }[]>([])
+  const [enrolledCampaigns, setEnrolledCampaigns] = useState<{ campaign_id: string; name: string; created_at: string }[]>([])
+  const [selectedCampaignIds, setSelectedCampaignIds] = useState<Set<string>>(new Set())
+  const [campaignSearch, setCampaignSearch] = useState('')
+  const [addingToCampaign, setAddingToCampaign] = useState(false)
+
   // AI Call Prep
   const [showCallPrep, setShowCallPrep] = useState(false)
   const [callPrepLoading, setCallPrepLoading] = useState(false)
@@ -200,6 +210,26 @@ export default function ContactDetailPage() {
           .limit(1)
           .maybeSingle()
         setCompanyId(compMatch?.id ?? null)
+      }
+
+      // Load enrolled campaigns
+      const { data: enrollments } = await supabase
+        .from('campaign_contacts')
+        .select('campaign_id, created_at')
+        .eq('contact_id', id)
+
+      if (enrollments && enrollments.length > 0) {
+        const campIds = enrollments.map(e => e.campaign_id)
+        const { data: campData } = await supabase
+          .from('email_campaigns')
+          .select('id, name')
+          .in('id', campIds)
+        const campMap = new Map((campData ?? []).map(c => [c.id, c.name]))
+        setEnrolledCampaigns(enrollments.map(e => ({
+          campaign_id: e.campaign_id,
+          name: campMap.get(e.campaign_id) || 'Unknown',
+          created_at: e.created_at,
+        })))
       }
 
       setLoading(false)
@@ -400,6 +430,63 @@ export default function ContactDetailPage() {
     toast.success('Brief copied to clipboard')
   }
 
+  // ── Add to Campaign ─────────────────────────────────────────────────────
+
+  async function openCampaignModal() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data } = await supabase
+      .from('email_campaigns')
+      .select('id, name, status')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+
+    setAllCampaigns(data ?? [])
+    setSelectedCampaignIds(new Set())
+    setCampaignSearch('')
+    setShowCampaignModal(true)
+  }
+
+  async function handleAddToCampaigns() {
+    if (selectedCampaignIds.size === 0) return
+    setAddingToCampaign(true)
+
+    const enrolledIds = new Set(enrolledCampaigns.map(c => c.campaign_id))
+    const newIds = Array.from(selectedCampaignIds).filter(cid => !enrolledIds.has(cid))
+
+    if (newIds.length === 0) {
+      toast.error('Already enrolled in all selected campaigns')
+      setAddingToCampaign(false)
+      return
+    }
+
+    const rows = newIds.map(campaign_id => ({
+      campaign_id,
+      contact_id: id,
+      user_id: userId,
+      status: 'active',
+    }))
+
+    const { error } = await supabase.from('campaign_contacts').insert(rows)
+    if (error) {
+      toast.error('Failed to add: ' + error.message)
+    } else {
+      const campMap = new Map(allCampaigns.map(c => [c.id, c.name]))
+      setEnrolledCampaigns(prev => [
+        ...prev,
+        ...newIds.map(cid => ({
+          campaign_id: cid,
+          name: campMap.get(cid) || 'Unknown',
+          created_at: new Date().toISOString(),
+        })),
+      ])
+      toast.success(`Added to ${newIds.length} campaign${newIds.length !== 1 ? 's' : ''}`)
+      setShowCampaignModal(false)
+    }
+    setAddingToCampaign(false)
+  }
+
   // ── Send Email ──────────────────────────────────────────────────────────
 
   async function handleSendEmail() {
@@ -566,6 +653,13 @@ export default function ContactDetailPage() {
                 >
                   <FileText size={14} /> Post-Call
                 </Link>
+                <button
+                  onClick={openCampaignModal}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.4)', backgroundColor: 'rgba(212,147,14,0.08)' }}
+                >
+                  <Send size={14} /> Add to Campaign
+                </button>
                 {contact?.email && (
                   <button
                     onClick={() => setShowSendEmail(true)}
@@ -834,6 +928,116 @@ export default function ContactDetailPage() {
           )}
         </div>
       </div>
+
+      {/* ── Campaigns Section ── */}
+      <div className="mt-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold text-white">Campaigns</h2>
+          <button
+            onClick={openCampaignModal}
+            className="text-xs text-blue-300/50 hover:text-blue-300 transition-colors"
+          >
+            + Add to campaign
+          </button>
+        </div>
+        {enrolledCampaigns.length === 0 ? (
+          <div className="rounded-xl p-6 text-center opacity-40"
+            style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <Send size={24} className="mx-auto mb-2 opacity-40" />
+            <p className="text-xs">Not enrolled in any campaigns</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {enrolledCampaigns.map(ec => (
+              <Link
+                key={ec.campaign_id}
+                href={`/campaigns/${ec.campaign_id}`}
+                className="block rounded-xl p-4 hover:opacity-80 transition-opacity"
+                style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.07)' }}
+              >
+                <p className="text-sm font-medium" style={{ color: '#d4930e' }}>{ec.name}</p>
+                <p className="text-xs text-blue-300/40 mt-1">Enrolled {formatShortDate(ec.created_at)}</p>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Add to Campaign Modal ── */}
+      {showCampaignModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowCampaignModal(false) }}
+        >
+          <div className="w-full max-w-lg rounded-2xl p-6 space-y-4 max-h-[80vh] flex flex-col" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-white">Add to Campaign</h3>
+              <button onClick={() => setShowCampaignModal(false)} className="text-blue-300/50 hover:text-white"><X size={20} /></button>
+            </div>
+
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-300/40" />
+              <input
+                type="text"
+                placeholder="Search campaigns..."
+                value={campaignSearch}
+                onChange={e => setCampaignSearch(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white placeholder-blue-300/40 focus:outline-none focus:ring-2 focus:ring-yellow-500/50"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+              {(() => {
+                const enrolledIds = new Set(enrolledCampaigns.map(c => c.campaign_id))
+                const q = campaignSearch.toLowerCase()
+                const filtered = allCampaigns.filter(c => c.name.toLowerCase().includes(q))
+                if (filtered.length === 0) return <p className="text-blue-300/40 text-sm text-center py-6">No campaigns found</p>
+                return filtered.map(c => {
+                  const already = enrolledIds.has(c.id)
+                  const selected = selectedCampaignIds.has(c.id)
+                  return (
+                    <label
+                      key={c.id}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${already ? 'opacity-40' : selected ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        disabled={already}
+                        onChange={() => {
+                          setSelectedCampaignIds(prev => {
+                            const next = new Set(prev)
+                            if (next.has(c.id)) next.delete(c.id); else next.add(c.id)
+                            return next
+                          })
+                        }}
+                        className="accent-[#d4930e] w-4 h-4"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white truncate">{c.name}</p>
+                        <p className="text-xs text-blue-300/40 capitalize">{c.status || 'draft'}</p>
+                      </div>
+                      {already && <span className="text-[10px] text-blue-300/40 shrink-0">Enrolled</span>}
+                    </label>
+                  )
+                })
+              })()}
+            </div>
+
+            <button
+              onClick={handleAddToCampaigns}
+              disabled={selectedCampaignIds.size === 0 || addingToCampaign}
+              className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 disabled:opacity-40 transition-colors"
+              style={{ backgroundColor: '#d4930e' }}
+            >
+              <Plus size={16} />
+              {addingToCampaign ? 'Adding...' : `Add to ${selectedCampaignIds.size} Campaign${selectedCampaignIds.size !== 1 ? 's' : ''}`}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Log Activity Modal ── */}
       {showModal && (
