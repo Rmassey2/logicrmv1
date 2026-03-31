@@ -85,6 +85,7 @@ export default function CampaignDetailPage() {
   const [launching, setLaunching] = useState(false)
   const [pausing, setPausing] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [sequences, setSequences] = useState<{ touch: number; day: number; label: string; subject: string; body: string }[]>([])
 
   // Add contacts modal
   const [showAddModal, setShowAddModal] = useState(false)
@@ -144,6 +145,40 @@ export default function CampaignDetailPage() {
       )
     } else {
       setContacts([])
+    }
+
+    // Fetch email sequences
+    const { data: seqData } = await supabase
+      .from('email_sequences')
+      .select('touch_number, day_number, label, subject, body')
+      .eq('campaign_id', id)
+      .order('touch_number', { ascending: true })
+
+    if (seqData && seqData.length > 0) {
+      setSequences(seqData.map(s => ({
+        touch: s.touch_number,
+        day: s.day_number,
+        label: s.label ?? '',
+        subject: s.subject ?? '',
+        body: s.body ?? '',
+      })))
+    } else if (camp.body) {
+      // Parse legacy concatenated body format: "--- Touch X (Day Y): Label ---\nSubject: ...\n\n..."
+      const touches = camp.body.split(/---\s*Touch\s+/).filter(Boolean)
+      const parsed: typeof sequences = []
+      for (const block of touches) {
+        const headerMatch = block.match(/^(\d+)\s*\(Day\s*(\d+)\):\s*(.+?)\s*---\s*\n/)
+        if (!headerMatch) continue
+        const touchNum = parseInt(headerMatch[1])
+        const dayNum = parseInt(headerMatch[2])
+        const label = headerMatch[3].trim()
+        const rest = block.slice(headerMatch[0].length)
+        const subjectMatch = rest.match(/^Subject:\s*(.+)\n\n/)
+        const subject = subjectMatch ? subjectMatch[1].trim() : ''
+        const body = subjectMatch ? rest.slice(subjectMatch[0].length).trim() : rest.trim()
+        parsed.push({ touch: touchNum, day: dayNum, label, subject, body })
+      }
+      if (parsed.length > 0) setSequences(parsed)
     }
 
     setLoading(false)
@@ -475,8 +510,8 @@ export default function CampaignDetailPage() {
           <p className="text-sm text-white">{campaign.subject}</p>
         </div>
 
-        {/* Body preview */}
-        {campaign.body && (
+        {/* Body preview — show as sequence cards if parsed, or raw fallback */}
+        {sequences.length > 0 ? null : campaign.body && (
           <div className="mt-4 pt-4 border-t border-white/10">
             <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50 mb-1">Email Body</p>
             <p className="text-sm text-blue-200/70 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
@@ -485,6 +520,39 @@ export default function CampaignDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Sequence touches */}
+      {sequences.length > 0 && (
+        <div className="space-y-3 mb-6">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-blue-300">Email Sequence ({sequences.length} touches)</h3>
+          {sequences.map(s => (
+            <div key={s.touch} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+              <div className="px-5 py-3 border-b border-white/10 flex items-center gap-3">
+                <span
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold"
+                  style={{ backgroundColor: 'rgba(212,147,14,0.15)', color: '#d4930e' }}
+                >
+                  {s.touch}
+                </span>
+                <div>
+                  <p className="text-xs font-medium text-white">Touch {s.touch}</p>
+                  <p className="text-[10px] text-blue-300/40">Day {s.day}{s.label ? ` · ${s.label}` : ''}</p>
+                </div>
+              </div>
+              <div className="p-5 space-y-2">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-300/40 mb-0.5">Subject</p>
+                  <p className="text-sm text-white">{s.subject}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-300/40 mb-0.5">Body</p>
+                  <p className="text-xs text-blue-200/70 whitespace-pre-wrap leading-relaxed">{s.body}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
