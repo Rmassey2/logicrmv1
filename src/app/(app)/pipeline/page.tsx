@@ -99,14 +99,16 @@ function LeadCard({ lead, isDragOverlay }: { lead: Lead; isDragOverlay?: boolean
         >
           <GripVertical className="w-4 h-4" />
         </div>
-        <Link href={`/pipeline/${lead.id}`} className="min-w-0 flex-1" onClick={e => { if (isDragging) e.preventDefault() }}>
-          <p className="text-sm font-medium text-white truncate">{lead.title}</p>
+        <div className="min-w-0 flex-1">
+          <Link href={`/pipeline/${lead.id}`} className="text-sm font-medium text-white truncate block hover:underline" onClick={e => { if (isDragging) e.preventDefault() }}>
+            {lead.title}
+          </Link>
           {contactName && lead.contact_id ? (
             <Link
               href={`/contacts/${lead.contact_id}`}
-              onClick={e => e.stopPropagation()}
               className="block text-xs mt-0.5 truncate underline decoration-[#d4930e]/40 underline-offset-2 hover:decoration-[#d4930e] transition-colors"
               style={{ color: '#d4930e' }}
+              onClick={e => { if (isDragging) e.preventDefault() }}
             >
               {contactName}
             </Link>
@@ -124,7 +126,7 @@ function LeadCard({ lead, isDragOverlay }: { lead: Lead; isDragOverlay?: boolean
           {lead.rep_name && (
             <p className="text-[10px] text-blue-300/40 mt-1 truncate">{lead.rep_name}</p>
           )}
-        </Link>
+        </div>
       </div>
     </div>
   )
