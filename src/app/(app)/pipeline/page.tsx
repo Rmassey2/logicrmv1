@@ -12,18 +12,16 @@ import {
   useSensor,
   useSensors,
   useDroppable,
-  closestCorners,
+  closestCenter,
   type DragStartEvent,
   type DragEndEvent,
-  type DragOverEvent,
 } from '@dnd-kit/core'
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable'
+import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, X, DollarSign, TrendingUp, GripVertical, Search, Filter } from 'lucide-react'
+import {
+  Plus, X, DollarSign, TrendingUp, GripVertical, Search, Filter,
+  ChevronDown, ChevronRight, Clock,
+} from 'lucide-react'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -68,9 +66,40 @@ interface ContactOption {
   company: string | null
 }
 
-// ─── Sortable Lead Card ──────────────────────────────────────────────────────
+const STAGE_COLORS: Record<string, string> = {
+  'cold lead':        '#6b7280',
+  'contacted':        '#1e3a5f',
+  'discovery call':   '#d4930e',
+  'trial lane':       '#8b5cf6',
+  'active customer':  '#22c55e',
+  'closed lost':      '#ef4444',
+}
 
-function LeadCard({ lead, isDragOverlay }: { lead: Lead; isDragOverlay?: boolean }) {
+function getStageColor(name: string): string {
+  return STAGE_COLORS[name.toLowerCase()] ?? '#6b7280'
+}
+
+function daysAgo(iso: string | null | undefined): string {
+  if (!iso) return 'No activity'
+  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+  if (d === 0) return 'Today'
+  if (d === 1) return '1 day ago'
+  return `${d} days ago`
+}
+
+// ─── Sortable Deal Row ──────────────────────────────────────────────────────
+
+function DealRow({
+  lead,
+  stages,
+  isDragOverlay,
+  onMoveStage,
+}: {
+  lead: Lead
+  stages: Stage[]
+  isDragOverlay?: boolean
+  onMoveStage?: (leadId: string, stageId: string) => void
+}) {
   const {
     attributes,
     listeners,
@@ -80,112 +109,206 @@ function LeadCard({ lead, isDragOverlay }: { lead: Lead; isDragOverlay?: boolean
     isDragging,
   } = useSortable({ id: lead.id, data: { type: 'lead', stageId: lead.stage_id } })
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
-  }
+  const style = isDragOverlay
+    ? undefined
+    : {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.3 : 1,
+      }
 
   const contactName = lead.contact
     ? [lead.contact.first_name, lead.contact.last_name].filter(Boolean).join(' ')
     : null
 
-  const inner = (
-    <div className={`bg-white/5 border border-white/10 rounded-xl p-3.5 ${isDragOverlay ? 'shadow-2xl ring-1 ring-yellow-500/30' : 'hover:bg-white/[0.07]'} transition-colors`}>
-      <div className="flex items-start gap-2">
-        <div
-          className="mt-0.5 cursor-grab active:cursor-grabbing text-blue-300/30 hover:text-blue-300/60 transition-colors shrink-0"
-          {...(isDragOverlay ? {} : { ...attributes, ...listeners })}
+  const activityText = daysAgo(lead.last_activity_at)
+  const activityDays = lead.last_activity_at
+    ? Math.floor((Date.now() - new Date(lead.last_activity_at).getTime()) / 86400000)
+    : 999
+
+  const row = (
+    <div className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-colors group ${isDragOverlay ? 'bg-[#0f1c35] shadow-2xl ring-1 ring-yellow-500/30 border border-white/10' : 'hover:bg-white/5'}`}>
+      {/* Drag handle */}
+      <div
+        className="cursor-grab active:cursor-grabbing text-blue-300/20 hover:text-blue-300/50 transition-colors shrink-0"
+        {...(isDragOverlay ? {} : { ...attributes, ...listeners })}
+      >
+        <GripVertical className="w-4 h-4" />
+      </div>
+
+      {/* Deal title */}
+      <div className="min-w-0 flex-1">
+        <Link
+          href={`/pipeline/${lead.id}`}
+          className="text-sm font-medium text-white hover:underline truncate block"
+          onClick={e => { if (isDragging) e.preventDefault() }}
         >
-          <GripVertical className="w-4 h-4" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <Link href={`/pipeline/${lead.id}`} className="text-sm font-medium text-white truncate block hover:underline" onClick={e => { if (isDragging) e.preventDefault() }}>
-            {lead.title}
+          {lead.title}
+        </Link>
+      </div>
+
+      {/* Contact */}
+      <div className="w-36 shrink-0 hidden sm:block">
+        {contactName && lead.contact_id ? (
+          <Link
+            href={`/contacts/${lead.contact_id}`}
+            className="text-xs truncate block hover:underline"
+            style={{ color: '#d4930e' }}
+            onClick={e => { if (isDragging) e.preventDefault() }}
+          >
+            {contactName}
           </Link>
-          {contactName && lead.contact_id ? (
-            <Link
-              href={`/contacts/${lead.contact_id}`}
-              className="block text-xs mt-0.5 truncate underline decoration-[#d4930e]/40 underline-offset-2 hover:decoration-[#d4930e] transition-colors"
-              style={{ color: '#d4930e' }}
-              onClick={e => { if (isDragging) e.preventDefault() }}
-            >
-              {contactName}
-            </Link>
-          ) : contactName ? (
-            <p className="text-xs text-blue-300/60 mt-0.5 truncate">{contactName}</p>
-          ) : null}
-          {lead.contact?.company && (
-            <p className="text-xs text-blue-300/40 truncate">{lead.contact.company}</p>
-          )}
-          {lead.value != null && lead.value > 0 && (
-            <p className="text-xs font-semibold mt-1.5" style={{ color: '#d4930e' }}>
-              ${lead.value.toLocaleString()}
-            </p>
-          )}
-          {lead.rep_name && (
-            <p className="text-[10px] text-blue-300/40 mt-1 truncate">{lead.rep_name}</p>
-          )}
+        ) : (
+          <span className="text-xs text-blue-300/30">—</span>
+        )}
+      </div>
+
+      {/* Company */}
+      <div className="w-32 shrink-0 hidden md:block">
+        <p className="text-xs text-blue-300/50 truncate">{lead.contact?.company || '—'}</p>
+      </div>
+
+      {/* Value */}
+      <div className="w-24 shrink-0 text-right">
+        {lead.value != null && lead.value > 0 ? (
+          <span className="text-xs font-semibold" style={{ color: '#d4930e' }}>
+            ${lead.value.toLocaleString()}
+          </span>
+        ) : (
+          <span className="text-xs text-blue-300/30">—</span>
+        )}
+      </div>
+
+      {/* Activity */}
+      <div className="w-28 shrink-0 text-right hidden lg:block">
+        <span className={`text-xs ${activityDays > 7 ? 'text-orange-400' : 'text-blue-300/40'}`}>
+          <Clock className="w-3 h-3 inline mr-1" />
+          {activityText}
+        </span>
+      </div>
+
+      {/* Rep name (admin) */}
+      {lead.rep_name && (
+        <div className="w-24 shrink-0 text-right hidden xl:block">
+          <span className="text-[10px] text-blue-300/40">{lead.rep_name}</span>
         </div>
+      )}
+
+      {/* Move stage */}
+      <div className="w-28 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <select
+          value={lead.stage_id}
+          onChange={e => onMoveStage?.(lead.id, e.target.value)}
+          onClick={e => e.stopPropagation()}
+          className="bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] text-blue-300 w-full focus:outline-none"
+        >
+          {stages.map(s => (
+            <option key={s.id} value={s.id} className="bg-[#0f1c35]">{s.name}</option>
+          ))}
+        </select>
       </div>
     </div>
   )
 
-  if (isDragOverlay) return inner
+  if (isDragOverlay) return row
 
   return (
     <div ref={setNodeRef} style={style}>
-      {inner}
+      {row}
     </div>
   )
 }
 
-// ─── Droppable Stage Column ──────────────────────────────────────────────────
+// ─── Droppable Stage Accordion ──────────────────────────────────────────────
 
-function StageColumn({
+function StageAccordion({
   stage,
   leads,
+  allStages,
+  isOpen,
+  onToggle,
   onAddDeal,
+  onMoveStage,
 }: {
   stage: Stage
   leads: Lead[]
+  allStages: Stage[]
+  isOpen: boolean
+  onToggle: () => void
   onAddDeal: (stageId: string) => void
+  onMoveStage: (leadId: string, stageId: string) => void
 }) {
-  // Make the entire column a drop target so empty columns accept cards
-  const { setNodeRef } = useDroppable({ id: stage.id, data: { type: 'stage' } })
+  const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { type: 'stage' } })
   const stageValue = leads.reduce((sum, l) => sum + (l.value ?? 0), 0)
+  const color = getStageColor(stage.name)
 
   return (
-    <div ref={setNodeRef} className="bg-white/[0.03] border border-white/10 rounded-2xl flex flex-col min-w-[280px] w-[280px] shrink-0">
-      {/* Column header */}
-      <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold text-white">{stage.name}</p>
-          <p className="text-[10px] text-blue-300/50 mt-0.5">
-            {leads.length} deal{leads.length !== 1 && 's'}
-            {stageValue > 0 && ` · $${stageValue.toLocaleString()}`}
-          </p>
-        </div>
-        <button
-          onClick={() => onAddDeal(stage.id)}
-          className="p-1.5 rounded-lg text-blue-300/50 hover:text-white hover:bg-white/10 transition-colors"
+    <div
+      ref={setNodeRef}
+      className={`rounded-2xl border transition-colors ${isOver ? 'border-yellow-500/40 bg-yellow-500/5' : 'border-white/10 bg-white/[0.02]'}`}
+    >
+      {/* Header — always visible, acts as drop target */}
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center gap-3 px-5 py-4 text-left group"
+      >
+        <span
+          className="w-3 h-3 rounded-full shrink-0"
+          style={{ backgroundColor: color }}
+        />
+        {isOpen ? (
+          <ChevronDown className="w-4 h-4 text-blue-300/40 shrink-0" />
+        ) : (
+          <ChevronRight className="w-4 h-4 text-blue-300/40 shrink-0" />
+        )}
+        <span className="text-sm font-semibold text-white flex-1">{stage.name}</span>
+        <span className="text-xs text-blue-300/50">
+          {leads.length} deal{leads.length !== 1 && 's'}
+        </span>
+        {stageValue > 0 && (
+          <span className="text-xs font-semibold" style={{ color: '#d4930e' }}>
+            ${stageValue.toLocaleString()}
+          </span>
+        )}
+        <span
+          onClick={e => { e.stopPropagation(); onAddDeal(stage.id) }}
+          className="p-1 rounded-lg text-blue-300/30 hover:text-white hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"
           title="Add deal"
         >
           <Plus className="w-4 h-4" />
-        </button>
-      </div>
+        </span>
+      </button>
 
-      {/* Cards */}
-      <SortableContext items={leads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-        <div className="flex-1 p-2 space-y-2 min-h-[120px] overflow-y-auto max-h-[calc(100vh-280px)]">
-          {leads.length === 0 && (
-            <p className="text-center text-blue-300/20 text-xs py-8">No deals</p>
+      {/* Expanded deals list */}
+      {isOpen && (
+        <div className="px-3 pb-3">
+          {/* Column headers */}
+          {leads.length > 0 && (
+            <div className="flex items-center gap-4 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-blue-300/30">
+              <div className="w-4 shrink-0" />
+              <div className="flex-1">Deal</div>
+              <div className="w-36 shrink-0 hidden sm:block">Contact</div>
+              <div className="w-32 shrink-0 hidden md:block">Company</div>
+              <div className="w-24 shrink-0 text-right">Value</div>
+              <div className="w-28 shrink-0 text-right hidden lg:block">Activity</div>
+              <div className="w-28 shrink-0" />
+            </div>
           )}
-          {leads.map((lead) => (
-            <LeadCard key={lead.id} lead={lead} />
-          ))}
+          <div className="space-y-1">
+            {leads.length === 0 && (
+              <p className="text-center text-blue-300/20 text-xs py-6">No deals in this stage</p>
+            )}
+            {leads.map(lead => (
+              <DealRow
+                key={lead.id}
+                lead={lead}
+                stages={allStages}
+                onMoveStage={onMoveStage}
+              />
+            ))}
+          </div>
         </div>
-      </SortableContext>
+      )}
     </div>
   )
 }
@@ -319,6 +442,7 @@ export default function PipelinePage() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [orgMembers, setOrgMembers] = useState<OrgMember[]>([])
   const [filterRep, setFilterRep] = useState('')
+  const [openStages, setOpenStages] = useState<Set<string>>(new Set())
 
   // Filters
   const [search, setSearch] = useState('')
@@ -327,8 +451,16 @@ export default function PipelinePage() {
   const [filterActivity, setFilterActivity] = useState('')
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
+
+  function toggleStage(stageId: string) {
+    setOpenStages(prev => {
+      const next = new Set(prev)
+      if (next.has(stageId)) next.delete(stageId); else next.add(stageId)
+      return next
+    })
+  }
 
   const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -348,7 +480,6 @@ export default function PipelinePage() {
       setOrgMembers(orgData.members)
     }
 
-    // Stages + contacts always from own user (stages are per-user, contacts for add-deal modal)
     const [stagesRes, contactsRes] = await Promise.all([
       supabase
         .from('pipeline_stages')
@@ -366,7 +497,6 @@ export default function PipelinePage() {
     setContacts(contactsRes.data ?? [])
 
     if (userIsAdmin && orgData.leads) {
-      // Admin: use org-wide leads from API
       const repNameMap = new Map<string, string>(
         (orgData.members as OrgMember[]).map((m: OrgMember) => [m.user_id, m.name])
       )
@@ -398,7 +528,6 @@ export default function PipelinePage() {
         }))
       )
     } else {
-      // Rep: own deals only
       const [leadsRes, activitiesRes] = await Promise.all([
         supabase
           .from('leads')
@@ -449,44 +578,60 @@ export default function PipelinePage() {
     if (lead) setActiveLead(lead)
   }
 
-  function handleDragOver(event: DragOverEvent) {
-    const { active, over } = event
-    if (!over) return
-
-    const activeLeadId = active.id as string
-    const overId = over.id as string
-
-    // Determine the target stage
-    const overLead = leads.find((l) => l.id === overId)
-    const overStage = stages.find((s) => s.id === overId)
-    const targetStageId = overLead?.stage_id ?? overStage?.id
-    if (!targetStageId) return
-
-    // Move card to new stage in state
-    setLeads((prev) =>
-      prev.map((l) => (l.id === activeLeadId ? { ...l, stage_id: targetStageId } : l))
-    )
-  }
-
   async function handleDragEnd(event: DragEndEvent) {
     setActiveLead(null)
     const { active, over } = event
     if (!over) return
 
     const activeLeadId = active.id as string
-    const lead = leads.find((l) => l.id === activeLeadId)
-    if (!lead) return
+    const overId = over.id as string
 
-    // Persist stage change
+    // Determine target stage: could be a stage header or a lead in a stage
+    const overLead = leads.find((l) => l.id === overId)
+    const overStage = stages.find((s) => s.id === overId)
+    const targetStageId = overStage?.id ?? overLead?.stage_id
+    if (!targetStageId) return
+
+    const currentLead = leads.find(l => l.id === activeLeadId)
+    if (!currentLead || currentLead.stage_id === targetStageId) return
+
+    // Update in state
+    setLeads(prev => prev.map(l => l.id === activeLeadId ? { ...l, stage_id: targetStageId } : l))
+
+    // Persist
     const { error } = await supabase
       .from('leads')
-      .update({ stage_id: lead.stage_id })
+      .update({ stage_id: targetStageId })
       .eq('id', activeLeadId)
 
     if (error) {
-      console.error('Lead stage update failed:', error)
       toast.error(`Failed to move deal: ${error.message}`)
       loadData()
+    } else {
+      const stageName = stages.find(s => s.id === targetStageId)?.name ?? 'stage'
+      toast.success(`Moved to ${stageName}`)
+    }
+  }
+
+  // ── Move stage (dropdown) ──────────────────────────────────────────────
+
+  async function handleMoveStage(leadId: string, newStageId: string) {
+    const current = leads.find(l => l.id === leadId)
+    if (!current || current.stage_id === newStageId) return
+
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage_id: newStageId } : l))
+
+    const { error } = await supabase
+      .from('leads')
+      .update({ stage_id: newStageId })
+      .eq('id', leadId)
+
+    if (error) {
+      toast.error(`Failed to move deal: ${error.message}`)
+      loadData()
+    } else {
+      const stageName = stages.find(s => s.id === newStageId)?.name ?? 'stage'
+      toast.success(`Moved to ${stageName}`)
     }
   }
 
@@ -496,24 +641,23 @@ export default function PipelinePage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const payload = {
+    const { error } = await supabase.from('leads').insert({
       user_id: user.id,
       title: deal.title,
       stage_id: deal.stage_id,
       contact_id: deal.contact_id,
       value: deal.value,
-    }
-
-    const { error } = await supabase.from('leads').insert(payload)
+    })
 
     if (error) {
-      console.error('Lead insert failed:', error)
       toast.error(`Failed to add deal: ${error.message}`)
       return
     }
 
     toast.success('Deal added!')
     setModalStageId(null)
+    // Auto-open the stage
+    setOpenStages(prev => new Set(prev).add(deal.stage_id))
     loadData()
   }
 
@@ -530,9 +674,7 @@ export default function PipelinePage() {
   }
 
   const filteredLeads = leads.filter(l => {
-    // Salesperson
     if (filterRep && l.user_id !== filterRep) return false
-    // Search
     if (search) {
       const q = search.toLowerCase()
       const contactName = l.contact ? [l.contact.first_name, l.contact.last_name].filter(Boolean).join(' ').toLowerCase() : ''
@@ -540,7 +682,6 @@ export default function PipelinePage() {
       const title = l.title.toLowerCase()
       if (!contactName.includes(q) && !company.includes(q) && !title.includes(q)) return false
     }
-    // Value
     if (filterValue) {
       const v = l.value ?? 0
       if (filterValue === 'under10k' && v >= 10000) return false
@@ -548,12 +689,10 @@ export default function PipelinePage() {
       if (filterValue === '50k-100k' && (v < 50000 || v > 100000)) return false
       if (filterValue === 'over100k' && v <= 100000) return false
     }
-    // Activity
     if (filterActivity) {
       const days = parseInt(filterActivity)
       const cutoff = Date.now() - days * 86400000
       if (l.last_activity_at && new Date(l.last_activity_at).getTime() > cutoff) return false
-      // If no activity at all, it counts as "no activity"
     }
     return true
   })
@@ -567,7 +706,6 @@ export default function PipelinePage() {
       const bTime = b.last_activity_at ? new Date(b.last_activity_at).getTime() : 0
       return bTime - aTime
     }
-    // newest (default)
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   })
 
@@ -598,7 +736,7 @@ export default function PipelinePage() {
               <span className="flex items-center gap-1 text-blue-300 text-sm">
                 <TrendingUp className="w-4 h-4" />
                 {totalDeals} deal{totalDeals !== 1 && 's'}
-                {totalDeals !== leads.length && <span className="text-blue-300/40">of {leads.length}</span>}
+                {totalDeals !== leads.length && <span className="text-blue-300/40"> of {leads.length}</span>}
               </span>
               <span className="flex items-center gap-1 text-sm" style={{ color: '#d4930e' }}>
                 <DollarSign className="w-4 h-4" />
@@ -659,43 +797,44 @@ export default function PipelinePage() {
         )}
       </div>
 
-      {/* Board */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden px-8 pb-8">
+      {/* Accordion Board */}
+      <div className="flex-1 overflow-y-auto px-8 pb-8">
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={closestCenter}
           onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex gap-4 h-full">
+          <div className="space-y-3">
             {stages.map((stage) => {
               const stageLeads = sortedLeads.filter((l) => l.stage_id === stage.id)
               return (
-                <StageColumn
+                <StageAccordion
                   key={stage.id}
                   stage={stage}
                   leads={stageLeads}
+                  allStages={stages}
+                  isOpen={openStages.has(stage.id)}
+                  onToggle={() => toggleStage(stage.id)}
                   onAddDeal={setModalStageId}
+                  onMoveStage={handleMoveStage}
                 />
               )
             })}
 
             {stages.length === 0 && (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center">
-                  <TrendingUp className="w-10 h-10 mx-auto mb-4 text-blue-300/30" />
-                  <p className="text-white font-medium mb-1">No pipeline stages</p>
-                  <p className="text-blue-300/60 text-sm">
-                    Create pipeline stages in Supabase to get started.
-                  </p>
-                </div>
+              <div className="text-center py-16">
+                <TrendingUp className="w-10 h-10 mx-auto mb-4 text-blue-300/30" />
+                <p className="text-white font-medium mb-1">No pipeline stages</p>
+                <p className="text-blue-300/60 text-sm">
+                  Create pipeline stages in Supabase to get started.
+                </p>
               </div>
             )}
           </div>
 
           <DragOverlay dropAnimation={null}>
-            {activeLead ? <LeadCard lead={activeLead} isDragOverlay /> : null}
+            {activeLead ? <DealRow lead={activeLead} stages={stages} isDragOverlay /> : null}
           </DragOverlay>
         </DndContext>
       </div>
