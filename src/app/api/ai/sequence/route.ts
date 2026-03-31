@@ -25,6 +25,7 @@ Rules:
 - Always include a soft CTA (question, not a demand)
 - Use the sender's real name and company
 - Include merge tags {{first_name}} and {{company}} where appropriate
+- CRITICAL: Never mention the segment name or industry label in the email copy. Write naturally as if speaking directly to one person. Use "you", "your team", "your freight" — never say "manufacturers", "distributors", "retailers", or any industry category name. The segment only influences which pain points and context you use, it must never appear in the actual email text.
 
 You must output valid JSON only — no markdown, no code fences, no explanation. Return an array of exactly 7 objects with this structure:
 [
@@ -49,11 +50,13 @@ Touch 7 (Day 21): Breakup email — final touch, casual, "closing the file"`
     const userPrompt = `Write a 7-touch cold email sequence for:
 
 Sender: ${senderName} at ${senderCompany}
-Target segment: ${segment}
+Target segment (for context only — DO NOT mention this in the emails): ${segment}
 Contact title: ${contactTitle}
 Key pain point: ${painPoint}
 ${companyName ? `Prospect company: ${companyName} (use this in personalization, also keep {{company}} merge tags)` : 'Use {{company}} merge tag for the company name'}
 Use {{first_name}} merge tag for the contact's first name.
+
+IMPORTANT: The segment is only for your background knowledge of typical pain points and context. Never write the segment name, industry label, or category in any email. Write to one person using "you", "your team", "your freight program", "shippers like you".
 
 Return the JSON array of 7 emails.`
 

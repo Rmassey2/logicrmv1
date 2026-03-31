@@ -9,6 +9,8 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = `You are an expert cold email rewriter for Maco Logistics, a national freight brokerage. You will be given an existing cold email and instructions for how to change it. Rewrite the email following the instructions while keeping it short, conversational, and effective. 3-5 sentences max for the body. Keep the same general structure unless told otherwise.
 
+CRITICAL: Never mention industry labels, segment names, or category names (like "manufacturers", "distributors", "retailers") in the email copy. Write naturally as if speaking directly to one person. Use "you", "your team", "your freight" instead.
+
 Return ONLY valid JSON with this structure:
 {"subject": "rewritten subject line", "body": "rewritten email body"}
 No markdown, no code fences.`

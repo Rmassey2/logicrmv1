@@ -32,10 +32,17 @@ interface TouchEmail {
 }
 
 const SEGMENTS = [
-  'Mid-Market Manufacturer',
-  'Distributor/Wholesaler',
-  'Retailer/CPG',
-  'Construction/Industrial',
+  'All Shippers (general)',
+  'Manufacturers & Producers',
+  'Distributors & Wholesalers',
+  'Retailers & E-Commerce',
+  'Construction & Industrial',
+  'Food & Beverage',
+  'Chemical & Hazmat',
+  'Automotive & Parts',
+  'Healthcare & Medical Supplies',
+  'Agricultural & Farm Products',
+  'Custom',
 ]
 
 const DAY_COLORS = [
@@ -53,6 +60,7 @@ export default function AiSequencePage() {
 
   // Form
   const [segment, setSegment] = useState(SEGMENTS[0])
+  const [customSegment, setCustomSegment] = useState('')
   const [contactTitle, setContactTitle] = useState('')
   const [painPoint, setPainPoint] = useState('')
   const [companyName, setCompanyName] = useState('')
@@ -77,6 +85,8 @@ export default function AiSequencePage() {
   async function handleGenerate() {
     if (!contactTitle.trim()) { toast.error('Enter a contact title.'); return }
     if (!painPoint.trim()) { toast.error('Enter a pain point.'); return }
+    const effectiveSegment = segment === 'Custom' ? customSegment.trim() : segment
+    if (!effectiveSegment) { toast.error('Enter a custom segment.'); return }
 
     setGenerating(true)
     setSequence([])
@@ -90,7 +100,7 @@ export default function AiSequencePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          segment,
+          segment: effectiveSegment,
           contactTitle: contactTitle.trim(),
           painPoint: painPoint.trim(),
           companyName: companyName.trim(),
@@ -246,6 +256,15 @@ export default function AiSequencePage() {
                 <option key={s} value={s} className="bg-[#0f1c35]">{s}</option>
               ))}
             </select>
+            {segment === 'Custom' && (
+              <input
+                type="text"
+                placeholder="e.g. Pharmaceutical cold chain"
+                value={customSegment}
+                onChange={e => setCustomSegment(e.target.value)}
+                className={`${inputClass} mt-2`}
+              />
+            )}
           </div>
           <div>
             <label className={labelClass}>Contact Title</label>
