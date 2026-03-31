@@ -398,6 +398,7 @@ export default function CampaignDetailPage() {
     // Push to Instantly if campaign is live
     if (campaign?.instantly_campaign_id) {
       let pushFailed = 0
+      let lastError = ''
       for (const contactId of allAdded) {
         try {
           const res = await fetch('/api/instantly/push-contact', {
@@ -405,11 +406,16 @@ export default function CampaignDetailPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contact_id: contactId, instantly_campaign_id: campaign.instantly_campaign_id }),
           })
-          if (!res.ok) pushFailed++
-        } catch { pushFailed++ }
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({ error: 'Unknown' }))
+            lastError = errData.error || `HTTP ${res.status}`
+            console.error('[campaign] Instantly push failed:', lastError)
+            pushFailed++
+          }
+        } catch (err) { lastError = String(err); pushFailed++ }
       }
       if (pushFailed > 0) {
-        toast.error(`${pushFailed} contact${pushFailed !== 1 ? 's' : ''} saved but Instantly push failed. Try pushing manually.`, { duration: 5000 })
+        toast.error(`Instantly push failed: ${lastError}`, { duration: 8000 })
       } else {
         toast.success(`${totalAdded} contact${totalAdded !== 1 ? 's' : ''} added and live on Instantly!`)
       }

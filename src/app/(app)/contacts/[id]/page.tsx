@@ -535,6 +535,7 @@ export default function ContactDetailPage() {
     // Push to Instantly for live campaigns
     const contactName = contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : 'Contact'
     let pushFailed = 0
+    let lastPushError = ''
     for (const campId of allNewIds) {
       const camp = allCampaigns.find(c => c.id === campId)
       if (camp?.instantly_campaign_id) {
@@ -544,8 +545,13 @@ export default function ContactDetailPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contact_id: id, instantly_campaign_id: camp.instantly_campaign_id }),
           })
-          if (!res.ok) pushFailed++
-        } catch { pushFailed++ }
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({ error: 'Unknown' }))
+            lastPushError = errData.error || `HTTP ${res.status}`
+            console.error('[contact] Instantly push failed:', lastPushError)
+            pushFailed++
+          }
+        } catch (err) { lastPushError = String(err); pushFailed++ }
       }
     }
 
@@ -560,7 +566,7 @@ export default function ContactDetailPage() {
     ])
 
     if (pushFailed > 0) {
-      toast.error(`${contactName} saved but Instantly push failed for ${pushFailed} campaign${pushFailed !== 1 ? 's' : ''}. Try pushing manually.`, { duration: 5000 })
+      toast.error(`Instantly push failed: ${lastPushError}`, { duration: 8000 })
     } else {
       const hasLive = allNewIds.some(cid => allCampaigns.find(c => c.id === cid)?.instantly_campaign_id)
       if (hasLive) {

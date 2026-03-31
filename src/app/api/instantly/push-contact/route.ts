@@ -1,18 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { addLeadsToCampaign, type InstantlyLead } from '@/lib/instantly'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
+const INSTANTLY_API_KEY = process.env.INSTANTLY_API_KEY
+const INSTANTLY_BASE = 'https://api.instantly.ai/api/v2'
+
 export async function POST(req: NextRequest) {
   try {
     const { contact_id, instantly_campaign_id } = await req.json()
 
+    console.log('[push-contact] Input:', { contact_id, instantly_campaign_id })
+    console.log('[push-contact] API key exists:', !!INSTANTLY_API_KEY)
+    console.log('[push-contact] API key length:', INSTANTLY_API_KEY?.length)
+
     if (!contact_id || !instantly_campaign_id) {
       return NextResponse.json({ error: 'contact_id and instantly_campaign_id are required' }, { status: 400 })
+    }
+
+    if (!INSTANTLY_API_KEY) {
+      return NextResponse.json({ error: 'INSTANTLY_API_KEY not configured' }, { status: 500 })
     }
 
     const { data: contact, error: fetchErr } = await supabase
@@ -22,6 +32,7 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (fetchErr || !contact) {
+      console.error('[push-contact] Contact fetch failed:', fetchErr)
       return NextResponse.json({ error: 'Contact not found' }, { status: 404 })
     }
 
@@ -29,31 +40,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Contact has no email address' }, { status: 400 })
     }
 
-    const lead: InstantlyLead = {
-      email: contact.email,
-      firstName: contact.first_name ?? undefined,
-      lastName: contact.last_name ?? undefined,
-      companyName: contact.company ?? undefined,
+    // Build the exact payload for Instantly v2
+    const payload = {
+      campaign_id: instantly_campaign_id,
+      leads: [
+        {
+          email: contact.email,
+          first_name: contact.first_name || '',
+          last_name: contact.last_name || '',
+          company_name: contact.company || '',
+        },
+      ],
     }
 
-    console.log('[push-contact] Pushing to Instantly:', {
-      contact_id,
-      instantly_campaign_id,
-      email: contact.email,
-      name: `${contact.first_name} ${contact.last_name}`,
+    console.log('[push-contact] Sending to Instantly:', JSON.stringify(payload))
+
+    const instantlyRes = await fetch(`${INSTANTLY_BASE}/leads`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${INSTANTLY_API_KEY}`,
+      },
+      body: JSON.stringify(payload),
     })
 
-    const result = await addLeadsToCampaign(instantly_campaign_id, [lead])
+    const responseText = await instantlyRes.text()
+    console.log('[push-contact] Instantly response status:', instantlyRes.status)
+    console.log('[push-contact] Instantly response body:', responseText)
 
-    if (!result.ok) {
-      console.error('[push-contact] Instantly push failed:', result.error)
-      return NextResponse.json({ error: result.error ?? 'Instantly push failed' }, { status: 500 })
+    if (!instantlyRes.ok) {
+      return NextResponse.json({
+        error: `Instantly API error: ${instantlyRes.status} — ${responseText}`,
+      }, { status: 500 })
     }
 
-    console.log('[push-contact] Success:', result.data)
-    return NextResponse.json({ success: true })
+    // Parse response
+    let responseData = null
+    try { responseData = JSON.parse(responseText) } catch { /* non-JSON ok */ }
+
+    console.log('[push-contact] Success! Parsed response:', responseData)
+    return NextResponse.json({ success: true, instantly_response: responseData })
   } catch (err) {
-    console.error('Push contact error:', err)
+    console.error('[push-contact] Unhandled error:', err)
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }
