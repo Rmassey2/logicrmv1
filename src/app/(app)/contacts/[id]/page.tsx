@@ -502,7 +502,7 @@ export default function ContactDetailPage() {
           body: sendBody.trim(),
           contact_id: id,
           user_id: userId,
-          from_name: 'Randall Massey',
+          from_name: 'Jarrett Bailey',
         }),
       })
       const data = await res.json()

@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
 
-    const systemPrompt = `You are an expert cold email writer for Maco Logistics, a national freight brokerage. Write short, conversational cold emails that get replies. No buzzwords, no fluff. 3-5 sentences max. Always include a soft CTA. Use the contact's first name and company. Write for freight industry decision makers — Transportation Managers, Procurement leads. The sender is Randall Massey at Maco Logistics.
+    const systemPrompt = `You are an expert cold email writer for Maco Logistics, a national freight brokerage. Write short, conversational cold emails that get replies. No buzzwords, no fluff. 3-5 sentences max. Always include a soft CTA. Use the contact's first name and company. Write for freight industry decision makers — Transportation Managers, Procurement leads. The sender is Jarrett Bailey at Maco Logistics.
 
 The 7-touch cadence:
 Touch 1: Quick question / pattern interrupt
@@ -22,7 +22,7 @@ Return ONLY valid JSON with this structure:
 {"subject": "subject line here", "body": "email body here"}
 No markdown, no code fences.`
 
-    const userPrompt = `Write Touch ${touchNumber} email for ${firstName} at ${company}. Their pain point is: ${painPoint}. Include subject line and email body. Sign off as Randall Massey, Maco Logistics.`
+    const userPrompt = `Write Touch ${touchNumber} email for ${firstName} at ${company}. Their pain point is: ${painPoint}. Include subject line and email body. Sign off as Jarrett Bailey, Maco Logistics.`
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

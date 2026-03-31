@@ -87,7 +87,7 @@ export default function AiSequencePage() {
   const [contactTitle, setContactTitle] = useState('')
   const [painPoint, setPainPoint] = useState('')
   const [companyName, setCompanyName] = useState('')
-  const [senderName, setSenderName] = useState('Randall Massey')
+  const [senderName, setSenderName] = useState('Jarrett Bailey')
   const [senderCompany, setSenderCompany] = useState('Maco Logistics')
   const [tone, setTone] = useState<string>(TONES[0])
   const [customTone, setCustomTone] = useState('')

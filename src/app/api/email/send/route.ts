@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
     const resend = new Resend(apiKey)
 
-    const fromField = `${from_name || 'Jarrett'} <jarrett@macoships.com>`
+    const fromField = `${from_name || 'Jarrett Bailey'} <jarrett@macoships.com>`
 
     const { data, error } = await resend.emails.send({
       from: fromField,

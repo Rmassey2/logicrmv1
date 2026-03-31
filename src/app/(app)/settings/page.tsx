@@ -432,7 +432,7 @@ export default function SettingsPage() {
               <label className={labelClass}>Display Name</label>
               <input
                 type="text"
-                placeholder="Randall Massey"
+                placeholder="Jarrett Bailey"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 className={inputClass}
