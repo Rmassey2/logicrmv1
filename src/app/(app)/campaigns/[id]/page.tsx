@@ -95,6 +95,7 @@ export default function CampaignDetailPage() {
   const [addingContacts, setAddingContacts] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [activeCampaignMap, setActiveCampaignMap] = useState<Map<string, string>>(new Map())
+  const [confirmModal, setConfirmModal] = useState<{ show: boolean; message: string; onConfirm: () => void }>({ show: false, message: '', onConfirm: () => {} })
 
   const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -271,20 +272,24 @@ export default function CampaignDetailPage() {
 
   // ── Remove contact ─────────────────────────────────────────────────────────
 
-  async function handleRemoveContact(enrollmentId: string, contactName: string) {
-    if (!confirm(`Remove ${contactName} from this campaign?`)) return
+  function handleRemoveContact(enrollmentId: string, contactName: string) {
+    setConfirmModal({
+      show: true,
+      message: `Remove ${contactName} from this campaign?`,
+      onConfirm: async () => {
+        const { error } = await supabase
+          .from('campaign_contacts')
+          .update({ status: 'removed' })
+          .eq('id', enrollmentId)
 
-    const { error } = await supabase
-      .from('campaign_contacts')
-      .update({ status: 'removed' })
-      .eq('id', enrollmentId)
-
-    if (error) {
-      toast.error('Failed to remove contact')
-    } else {
-      setContacts(prev => prev.filter(c => c.id !== enrollmentId))
-      toast.success('Contact removed from campaign')
-    }
+        if (error) {
+          toast.error('Failed to remove contact')
+        } else {
+          setContacts(prev => prev.filter(c => c.id !== enrollmentId))
+          toast.success('Contact removed from campaign')
+        }
+      },
+    })
   }
 
   // ── Add contacts modal ─────────────────────────────────────────────────────
@@ -796,6 +801,18 @@ export default function CampaignDetailPage() {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmModal.show && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="rounded-2xl p-6 w-full max-w-sm" style={{ background: '#162847', border: '1px solid rgba(212,147,14,0.3)' }}>
+            <p className="text-sm mb-6" style={{ color: '#f4f1eb' }}>{confirmModal.message}</p>
+            <div className="flex gap-3">
+              <button onClick={() => { confirmModal.onConfirm(); setConfirmModal({ show: false, message: '', onConfirm: () => {} }) }} className="flex-1 py-2 rounded-lg text-sm font-semibold" style={{ background: '#d4930e', color: '#0f1c35' }}>Confirm</button>
+              <button onClick={() => setConfirmModal({ show: false, message: '', onConfirm: () => {} })} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'rgba(138,154,181,0.1)', color: '#8a9ab5' }}>Cancel</button>
             </div>
           </div>
         </div>

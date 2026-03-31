@@ -33,6 +33,7 @@ export default function CampaignsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [confirmModal, setConfirmModal] = useState<{ show: boolean; message: string; onConfirm: () => void }>({ show: false, message: '', onConfirm: () => {} })
 
   useEffect(() => {
     async function load() {
@@ -51,21 +52,19 @@ export default function CampaignsPage() {
     load()
   }, [])
 
-  async function handleDelete(campaign: Campaign) {
-    if (!confirm(`Delete "${campaign.name}"? This cannot be undone.`)) return
-
-    // Delete related records first, then the campaign
-    await supabase.from('email_sequences').delete().eq('campaign_id', campaign.id)
-    await supabase.from('campaign_contacts').delete().eq('campaign_id', campaign.id)
-    const { error } = await supabase.from('email_campaigns').delete().eq('id', campaign.id)
-
-    if (error) {
-      toast.error('Failed to delete campaign: ' + error.message)
-      return
-    }
-
-    setCampaigns(prev => prev.filter(c => c.id !== campaign.id))
-    toast.success(`"${campaign.name}" deleted`)
+  function handleDelete(campaign: Campaign) {
+    setConfirmModal({
+      show: true,
+      message: `Delete "${campaign.name}"? This cannot be undone.`,
+      onConfirm: async () => {
+        await supabase.from('email_sequences').delete().eq('campaign_id', campaign.id)
+        await supabase.from('campaign_contacts').delete().eq('campaign_id', campaign.id)
+        const { error } = await supabase.from('email_campaigns').delete().eq('id', campaign.id)
+        if (error) { toast.error('Failed to delete campaign: ' + error.message); return }
+        setCampaigns(prev => prev.filter(c => c.id !== campaign.id))
+        toast.success(`"${campaign.name}" deleted`)
+      },
+    })
   }
 
   function formatDate(iso: string) {
@@ -177,6 +176,18 @@ export default function CampaignsPage() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {confirmModal.show && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="rounded-2xl p-6 w-full max-w-sm" style={{ background: '#162847', border: '1px solid rgba(212,147,14,0.3)' }}>
+            <p className="text-sm mb-6" style={{ color: '#f4f1eb' }}>{confirmModal.message}</p>
+            <div className="flex gap-3">
+              <button onClick={() => { confirmModal.onConfirm(); setConfirmModal({ show: false, message: '', onConfirm: () => {} }) }} className="flex-1 py-2 rounded-lg text-sm font-semibold" style={{ background: '#d4930e', color: '#0f1c35' }}>Confirm</button>
+              <button onClick={() => setConfirmModal({ show: false, message: '', onConfirm: () => {} })} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'rgba(138,154,181,0.1)', color: '#8a9ab5' }}>Cancel</button>
+            </div>
+          </div>
         </div>
       )}
 

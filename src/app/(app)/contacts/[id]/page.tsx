@@ -164,6 +164,7 @@ export default function ContactDetailPage() {
   const [addingToCampaign, setAddingToCampaign] = useState(false)
   const [showCampaignConfirm, setShowCampaignConfirm] = useState(false)
   const [liveCampaignNames, setLiveCampaignNames] = useState<string[]>([])
+  const [confirmModal, setConfirmModal] = useState<{ show: boolean; message: string; onConfirm: () => void }>({ show: false, message: '', onConfirm: () => {} })
 
   // AI Call Prep
   const [showCallPrep, setShowCallPrep] = useState(false)
@@ -587,22 +588,26 @@ export default function ContactDetailPage() {
     setAddingToCampaign(false)
   }
 
-  async function handleRemoveFromCampaign(campaignId: string, campaignName: string) {
+  function handleRemoveFromCampaign(campaignId: string, campaignName: string) {
     const contactFullName = contact ? [contact.first_name, contact.last_name].filter(Boolean).join(' ') : 'this contact'
-    if (!confirm(`Remove ${contactFullName} from ${campaignName}?`)) return
+    setConfirmModal({
+      show: true,
+      message: `Remove ${contactFullName} from ${campaignName}?`,
+      onConfirm: async () => {
+        const { error } = await supabase
+          .from('campaign_contacts')
+          .update({ status: 'removed' })
+          .eq('contact_id', id)
+          .eq('campaign_id', campaignId)
 
-    const { error } = await supabase
-      .from('campaign_contacts')
-      .update({ status: 'removed' })
-      .eq('contact_id', id)
-      .eq('campaign_id', campaignId)
-
-    if (error) {
-      toast.error('Failed to remove from campaign')
-    } else {
-      setEnrolledCampaigns(prev => prev.filter(c => c.campaign_id !== campaignId))
-      toast.success('Removed from campaign')
-    }
+        if (error) {
+          toast.error('Failed to remove from campaign')
+        } else {
+          setEnrolledCampaigns(prev => prev.filter(c => c.campaign_id !== campaignId))
+          toast.success('Removed from campaign')
+        }
+      },
+    })
   }
 
   // ── Send Email ──────────────────────────────────────────────────────────
@@ -1614,6 +1619,18 @@ export default function ContactDetailPage() {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmModal.show && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="rounded-2xl p-6 w-full max-w-sm" style={{ background: '#162847', border: '1px solid rgba(212,147,14,0.3)' }}>
+            <p className="text-sm mb-6" style={{ color: '#f4f1eb' }}>{confirmModal.message}</p>
+            <div className="flex gap-3">
+              <button onClick={() => { confirmModal.onConfirm(); setConfirmModal({ show: false, message: '', onConfirm: () => {} }) }} className="flex-1 py-2 rounded-lg text-sm font-semibold" style={{ background: '#d4930e', color: '#0f1c35' }}>Confirm</button>
+              <button onClick={() => setConfirmModal({ show: false, message: '', onConfirm: () => {} })} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'rgba(138,154,181,0.1)', color: '#8a9ab5' }}>Cancel</button>
             </div>
           </div>
         </div>
