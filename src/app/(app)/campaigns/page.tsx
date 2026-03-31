@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, Mail, Send, CheckCircle2, FileEdit, FileText } from 'lucide-react'
+import { Plus, Mail, Send, CheckCircle2, FileEdit, FileText, Trash2 } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -49,6 +50,23 @@ export default function CampaignsPage() {
     }
     load()
   }, [])
+
+  async function handleDelete(campaign: Campaign) {
+    if (!confirm(`Delete "${campaign.name}"? This cannot be undone.`)) return
+
+    // Delete related records first, then the campaign
+    await supabase.from('email_sequences').delete().eq('campaign_id', campaign.id)
+    await supabase.from('campaign_contacts').delete().eq('campaign_id', campaign.id)
+    const { error } = await supabase.from('email_campaigns').delete().eq('id', campaign.id)
+
+    if (error) {
+      toast.error('Failed to delete campaign: ' + error.message)
+      return
+    }
+
+    setCampaigns(prev => prev.filter(c => c.id !== campaign.id))
+    toast.success(`"${campaign.name}" deleted`)
+  }
 
   function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString('en-US', {
@@ -148,6 +166,13 @@ export default function CampaignsPage() {
                     <p className="text-lg font-bold text-white">{c.reply_count ?? 0}</p>
                     <p className="text-[10px] uppercase tracking-wide text-blue-300/50">Replies</p>
                   </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(c) }}
+                    className="ml-2 p-2 rounded-lg text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Delete campaign"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             )
