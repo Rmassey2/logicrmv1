@@ -14,8 +14,6 @@ export async function POST(req: NextRequest) {
     const { contact_id, instantly_campaign_id } = await req.json()
 
     console.log('[push-contact] Input:', { contact_id, instantly_campaign_id })
-    console.log('[push-contact] API key exists:', !!INSTANTLY_API_KEY)
-    console.log('[push-contact] API key length:', INSTANTLY_API_KEY?.length)
 
     if (!contact_id || !instantly_campaign_id) {
       return NextResponse.json({ error: 'contact_id and instantly_campaign_id are required' }, { status: 400 })
@@ -27,7 +25,7 @@ export async function POST(req: NextRequest) {
 
     const { data: contact, error: fetchErr } = await supabase
       .from('contacts')
-      .select('id, first_name, last_name, email, company')
+      .select('id, first_name, last_name, email, email2, phone, cell_phone, company')
       .eq('id', contact_id)
       .single()
 
@@ -36,21 +34,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Contact not found' }, { status: 404 })
     }
 
-    if (!contact.email) {
-      return NextResponse.json({ error: 'Contact has no email address' }, { status: 400 })
+    const email = contact.email?.trim()
+    if (!email) {
+      return NextResponse.json({
+        error: 'Cannot add to Instantly — contact has no email address. Add an email to this contact first.',
+      }, { status: 400 })
     }
 
-    // Build the exact payload for Instantly v2
+    // Instantly v2 POST /leads expects a flat lead object with campaign_id
     const payload = {
-      campaign_id: instantly_campaign_id,
-      leads: [
-        {
-          email: contact.email,
-          first_name: contact.first_name || '',
-          last_name: contact.last_name || '',
-          company_name: contact.company || '',
-        },
-      ],
+      email: email,
+      first_name: contact.first_name || '',
+      last_name: contact.last_name || '',
+      company_name: contact.company || '',
+      phone: contact.phone || contact.cell_phone || '',
+      campaign: instantly_campaign_id,
     }
 
     console.log('[push-contact] Sending to Instantly:', JSON.stringify(payload))
@@ -69,17 +67,42 @@ export async function POST(req: NextRequest) {
     console.log('[push-contact] Instantly response body:', responseText)
 
     if (!instantlyRes.ok) {
-      return NextResponse.json({
-        error: `Instantly API error: ${instantlyRes.status} — ${responseText}`,
-      }, { status: 500 })
+      // Try the batch format as fallback
+      console.log('[push-contact] Single format failed, trying batch format...')
+      const batchPayload = {
+        campaign_id: instantly_campaign_id,
+        leads: [{ email, first_name: contact.first_name || '', last_name: contact.last_name || '', company_name: contact.company || '' }],
+      }
+      console.log('[push-contact] Batch payload:', JSON.stringify(batchPayload))
+
+      const batchRes = await fetch(`${INSTANTLY_BASE}/leads/batch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${INSTANTLY_API_KEY}`,
+        },
+        body: JSON.stringify(batchPayload),
+      })
+
+      const batchText = await batchRes.text()
+      console.log('[push-contact] Batch response status:', batchRes.status)
+      console.log('[push-contact] Batch response body:', batchText)
+
+      if (!batchRes.ok) {
+        return NextResponse.json({
+          error: `Instantly API error: single=${instantlyRes.status} batch=${batchRes.status} — ${batchText || responseText}`,
+        }, { status: 500 })
+      }
+
+      let batchData = null
+      try { batchData = JSON.parse(batchText) } catch { /* ok */ }
+      return NextResponse.json({ success: true, method: 'batch', instantly_response: batchData })
     }
 
-    // Parse response
     let responseData = null
-    try { responseData = JSON.parse(responseText) } catch { /* non-JSON ok */ }
-
-    console.log('[push-contact] Success! Parsed response:', responseData)
-    return NextResponse.json({ success: true, instantly_response: responseData })
+    try { responseData = JSON.parse(responseText) } catch { /* ok */ }
+    console.log('[push-contact] Success:', responseData)
+    return NextResponse.json({ success: true, method: 'single', instantly_response: responseData })
   } catch (err) {
     console.error('[push-contact] Unhandled error:', err)
     return NextResponse.json({ error: String(err) }, { status: 500 })

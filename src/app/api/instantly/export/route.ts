@@ -25,10 +25,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch contacts' }, { status: 500 })
     }
 
-    const withEmail = contacts.filter(c => c.email)
+    const withEmail = contacts.filter(c => c.email && c.email.trim() !== '')
     if (withEmail.length === 0) {
-      return NextResponse.json({ error: 'No contacts have email addresses' }, { status: 400 })
+      return NextResponse.json({ error: 'No contacts have email addresses. Instantly requires an email to add a lead.' }, { status: 400 })
     }
+    console.log('[export] Valid contacts with email:', withEmail.length, 'of', contacts.length)
 
     // Create draft campaign in Instantly
     const name = campaign_name || `LogiCRM Export — ${new Date().toLocaleDateString()}`

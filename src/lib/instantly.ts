@@ -89,27 +89,62 @@ export async function addLeadsToCampaign(
   campaignId: string,
   leads: InstantlyLead[]
 ) {
-  // Instantly v2 API expects snake_case fields for lead data
-  const payload = {
+  // Filter out leads without email
+  const validLeads = leads.filter(l => l.email && l.email.trim())
+  if (validLeads.length === 0) {
+    return { ok: false, error: 'No leads with email addresses' }
+  }
+
+  // Try batch endpoint first (Instantly v2)
+  const batchPayload = {
     campaign_id: campaignId,
-    leads: leads.map(l => ({
-      email: l.email,
+    leads: validLeads.map(l => ({
+      email: l.email.trim(),
       first_name: l.firstName ?? '',
       last_name: l.lastName ?? '',
       company_name: l.companyName ?? '',
     })),
   }
 
-  console.log('[instantly] addLeadsToCampaign request:', JSON.stringify(payload, null, 2))
+  console.log('[instantly] addLeadsToCampaign batch request:', JSON.stringify(batchPayload, null, 2))
 
-  const result = await request('/leads', {
+  const batchResult = await request('/leads/batch', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify(batchPayload),
   })
 
-  console.log('[instantly] addLeadsToCampaign response:', JSON.stringify(result, null, 2))
+  console.log('[instantly] addLeadsToCampaign batch response:', JSON.stringify(batchResult, null, 2))
 
-  return result
+  if (batchResult.ok) return batchResult
+
+  // Fallback: try single lead endpoint for each lead
+  console.log('[instantly] Batch failed, trying single lead endpoint...')
+  let lastError = ''
+  let successCount = 0
+  for (const l of validLeads) {
+    const singlePayload = {
+      email: l.email.trim(),
+      first_name: l.firstName ?? '',
+      last_name: l.lastName ?? '',
+      company_name: l.companyName ?? '',
+      campaign: campaignId,
+    }
+    const singleResult = await request('/leads', {
+      method: 'POST',
+      body: JSON.stringify(singlePayload),
+    })
+    if (singleResult.ok) {
+      successCount++
+    } else {
+      lastError = singleResult.error ?? 'Unknown'
+      console.error('[instantly] Single lead push failed:', l.email, lastError)
+    }
+  }
+
+  if (successCount > 0) {
+    return { ok: true, data: { added: successCount, failed: validLeads.length - successCount } }
+  }
+  return { ok: false, error: lastError || 'All leads failed to push' }
 }
 
 // ─── Launch (activate) a campaign ────────────────────────────────────────────
