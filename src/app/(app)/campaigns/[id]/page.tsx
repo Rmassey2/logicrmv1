@@ -330,26 +330,38 @@ export default function CampaignDetailPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Server-side dedup
-    const { data: existingRows } = await supabase
+    // Server-side dedup: fetch ALL existing rows for this campaign + selected contacts
+    const selectedArr = Array.from(selectedIds)
+    const { data: existingRows, error: dedupErr } = await supabase
       .from('campaign_contacts')
       .select('contact_id, status')
       .eq('campaign_id', id)
-      .in('contact_id', Array.from(selectedIds))
+      .in('contact_id', selectedArr)
 
-    const existingMap = new Map((existingRows ?? []).map(r => [r.contact_id, r.status]))
+    console.log('[add-contacts] Dedup check:', { selectedArr, existingRows, dedupErr })
+
+    // Build map — if multiple rows exist for same contact, prefer 'active'
+    const existingMap = new Map<string, string>()
+    for (const r of (existingRows ?? [])) {
+      const current = existingMap.get(r.contact_id)
+      if (!current || r.status === 'active') {
+        existingMap.set(r.contact_id, r.status)
+      }
+    }
+
     const toReactivate: string[] = []
     const toInsert: string[] = []
+    let alreadyActive = 0
 
-    for (const cid of Array.from(selectedIds)) {
+    for (const cid of selectedArr) {
       const status = existingMap.get(cid)
-      if (status === 'active') continue
+      if (status === 'active') { alreadyActive++; continue }
       if (status === 'removed') toReactivate.push(cid)
       else toInsert.push(cid)
     }
 
     if (toReactivate.length === 0 && toInsert.length === 0) {
-      toast.error('All selected contacts are already enrolled')
+      toast.error(`All ${alreadyActive} selected contact${alreadyActive !== 1 ? 's are' : ' is'} already enrolled`)
       setAddingContacts(false)
       return
     }
@@ -359,20 +371,25 @@ export default function CampaignDetailPage() {
       await supabase.from('campaign_contacts').update({ status: 'active' }).eq('campaign_id', id).eq('contact_id', cid)
     }
 
-    // Insert new contacts
-    if (toInsert.length > 0) {
-      const rows = toInsert.map(contact_id => ({
+    // Insert new contacts one at a time to avoid dupe constraint violations
+    let insertFailed = 0
+    for (const contact_id of toInsert) {
+      const { error } = await supabase.from('campaign_contacts').insert({
         campaign_id: id,
         contact_id,
         user_id: user.id,
         status: 'active',
-      }))
-      const { error } = await supabase.from('campaign_contacts').insert(rows)
+      })
       if (error) {
-        toast.error('Failed to add contacts: ' + error.message)
-        setAddingContacts(false)
-        return
+        console.error('[add-contacts] Insert failed for', contact_id, error.message)
+        insertFailed++
       }
+    }
+
+    if (insertFailed > 0 && insertFailed === toInsert.length && toReactivate.length === 0) {
+      toast.error('Failed to add contacts — they may already be enrolled')
+      setAddingContacts(false)
+      return
     }
 
     const allAdded = [...toReactivate, ...toInsert]
