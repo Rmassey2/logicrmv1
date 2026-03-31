@@ -454,36 +454,63 @@ export default function ContactDetailPage() {
     if (selectedCampaignIds.size === 0) return
     setAddingToCampaign(true)
 
-    const enrolledIds = new Set(enrolledCampaigns.map(c => c.campaign_id))
-    const newIds = Array.from(selectedCampaignIds).filter(cid => !enrolledIds.has(cid))
+    // Server-side dedup: check for ANY existing enrollment (active or removed)
+    const { data: existingRows } = await supabase
+      .from('campaign_contacts')
+      .select('campaign_id, status')
+      .eq('contact_id', id)
+      .in('campaign_id', Array.from(selectedCampaignIds))
 
-    if (newIds.length === 0) {
+    const existingMap = new Map((existingRows ?? []).map(r => [r.campaign_id, r.status]))
+    const toReactivate: string[] = []
+    const toInsert: string[] = []
+
+    for (const cid of Array.from(selectedCampaignIds)) {
+      const status = existingMap.get(cid)
+      if (status === 'active') continue
+      if (status === 'removed') toReactivate.push(cid)
+      else toInsert.push(cid)
+    }
+
+    if (toReactivate.length === 0 && toInsert.length === 0) {
       toast.error('Already enrolled in all selected campaigns')
       setAddingToCampaign(false)
       return
     }
 
-    const rows = newIds.map(campaign_id => ({
-      campaign_id,
-      contact_id: id,
-      user_id: userId,
-      status: 'active',
-    }))
+    // Re-activate removed enrollments
+    for (const campId of toReactivate) {
+      await supabase.from('campaign_contacts').update({ status: 'active' }).eq('contact_id', id).eq('campaign_id', campId)
+    }
 
-    const { error } = await supabase.from('campaign_contacts').insert(rows)
-    if (error) {
-      toast.error('Failed to add: ' + error.message)
-    } else {
+    // Insert new enrollments
+    if (toInsert.length > 0) {
+      const rows = toInsert.map(campaign_id => ({
+        campaign_id,
+        contact_id: id,
+        user_id: userId,
+        status: 'active',
+      }))
+      const { error } = await supabase.from('campaign_contacts').insert(rows)
+      if (error) {
+        toast.error('Failed to add: ' + error.message)
+        setAddingToCampaign(false)
+        return
+      }
+    }
+
+    const allNewIds = [...toReactivate, ...toInsert]
+    {
       const campMap = new Map(allCampaigns.map(c => [c.id, c.name]))
       setEnrolledCampaigns(prev => [
         ...prev,
-        ...newIds.map(cid => ({
+        ...allNewIds.map(cid => ({
           campaign_id: cid,
           name: campMap.get(cid) || 'Unknown',
           created_at: new Date().toISOString(),
         })),
       ])
-      toast.success(`Added to ${newIds.length} campaign${newIds.length !== 1 ? 's' : ''}`)
+      toast.success(`Added to ${allNewIds.length} campaign${allNewIds.length !== 1 ? 's' : ''}`)
       setShowCampaignModal(false)
     }
     setAddingToCampaign(false)

@@ -283,30 +283,55 @@ export default function CampaignDetailPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const enrolledIds = new Set(contacts.map(c => c.contact_id))
-    const newIds = Array.from(selectedIds).filter(cid => !enrolledIds.has(cid))
+    // Server-side dedup: check for ANY existing enrollment (active or removed)
+    const { data: existingRows } = await supabase
+      .from('campaign_contacts')
+      .select('contact_id, status')
+      .eq('campaign_id', id)
+      .in('contact_id', Array.from(selectedIds))
 
-    if (newIds.length === 0) {
+    const existingMap = new Map((existingRows ?? []).map(r => [r.contact_id, r.status]))
+    const toReactivate: string[] = []
+    const toInsert: string[] = []
+
+    for (const cid of Array.from(selectedIds)) {
+      const status = existingMap.get(cid)
+      if (status === 'active') continue // already enrolled
+      if (status === 'removed') toReactivate.push(cid) // re-enroll
+      else toInsert.push(cid) // new enrollment
+    }
+
+    if (toReactivate.length === 0 && toInsert.length === 0) {
       toast.error('All selected contacts are already enrolled')
       setAddingContacts(false)
       return
     }
 
-    const rows = newIds.map(contact_id => ({
-      campaign_id: id,
-      contact_id,
-      user_id: user.id,
-      status: 'active',
-    }))
-
-    const { error } = await supabase.from('campaign_contacts').insert(rows)
-    if (error) {
-      toast.error('Failed to add contacts: ' + error.message)
-    } else {
-      toast.success(`${newIds.length} contact${newIds.length !== 1 ? 's' : ''} added`)
-      setShowAddModal(false)
-      loadData()
+    // Re-activate removed contacts
+    for (const cid of toReactivate) {
+      await supabase.from('campaign_contacts').update({ status: 'active' }).eq('campaign_id', id).eq('contact_id', cid)
     }
+
+    // Insert new contacts
+    if (toInsert.length > 0) {
+      const rows = toInsert.map(contact_id => ({
+        campaign_id: id,
+        contact_id,
+        user_id: user.id,
+        status: 'active',
+      }))
+      const { error } = await supabase.from('campaign_contacts').insert(rows)
+      if (error) {
+        toast.error('Failed to add contacts: ' + error.message)
+        setAddingContacts(false)
+        return
+      }
+    }
+
+    const totalAdded = toReactivate.length + toInsert.length
+    toast.success(`${totalAdded} contact${totalAdded !== 1 ? 's' : ''} added`)
+    setShowAddModal(false)
+    loadData()
     setAddingContacts(false)
   }
 
