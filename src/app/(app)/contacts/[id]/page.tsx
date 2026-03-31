@@ -147,6 +147,7 @@ export default function ContactDetailPage() {
   const [emailGenerating, setEmailGenerating] = useState(false)
   const [generatedEmail, setGeneratedEmail] = useState<{ subject: string; body: string } | null>(null)
   const [copiedField, setCopiedField] = useState<string | null>(null)
+  const [sendingDraft, setSendingDraft] = useState(false)
 
   // Send Email
   const [showSendEmail, setShowSendEmail] = useState(false)
@@ -1227,7 +1228,12 @@ export default function ContactDetailPage() {
                       {copiedField === 'subject' ? <><Check size={12} className="text-green-400" /> Copied</> : <><Copy size={12} /> Copy</>}
                     </button>
                   </div>
-                  <p className="text-sm text-white font-medium p-2 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>{generatedEmail.subject}</p>
+                  <input
+                    type="text"
+                    value={generatedEmail.subject}
+                    onChange={e => setGeneratedEmail({ ...generatedEmail, subject: e.target.value })}
+                    className="w-full text-sm text-white font-medium p-2 rounded bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-yellow-500/50"
+                  />
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
@@ -1236,15 +1242,63 @@ export default function ContactDetailPage() {
                       {copiedField === 'body' ? <><Check size={12} className="text-green-400" /> Copied</> : <><Copy size={12} /> Copy</>}
                     </button>
                   </div>
-                  <p className="text-sm text-blue-200 whitespace-pre-wrap leading-relaxed p-3 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>{generatedEmail.body}</p>
+                  <textarea
+                    rows={8}
+                    value={generatedEmail.body}
+                    onChange={e => setGeneratedEmail({ ...generatedEmail, body: e.target.value })}
+                    className="w-full text-sm text-blue-200 whitespace-pre-wrap leading-relaxed p-3 rounded bg-white/5 border border-white/10 resize-none font-mono focus:outline-none focus:ring-2 focus:ring-yellow-500/50"
+                  />
                 </div>
-                <button
-                  onClick={logEmailAsActivity}
-                  className="w-full py-2 rounded-lg text-sm font-medium opacity-70 hover:opacity-100"
-                  style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
-                >
-                  Log as Email Activity
-                </button>
+                <div className="flex items-center gap-3">
+                  {contact?.email && (
+                    <button
+                      onClick={async () => {
+                        if (!contact?.email || !generatedEmail) return
+                        setSendingDraft(true)
+                        try {
+                          const res = await fetch('/api/email/send', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              to: contact.email,
+                              subject: generatedEmail.subject,
+                              body: generatedEmail.body,
+                              contact_id: id,
+                              user_id: userId,
+                              from_name: 'Jarrett Bailey',
+                            }),
+                          })
+                          const data = await res.json()
+                          if (!res.ok) {
+                            toast.error(data.error ?? 'Send failed')
+                          } else {
+                            toast.success('Email sent and logged!')
+                            setShowEmailModal(false)
+                            setGeneratedEmail(null)
+                          }
+                        } catch {
+                          toast.error('Failed to send email')
+                        }
+                        setSendingDraft(false)
+                      }}
+                      disabled={sendingDraft}
+                      className="flex-1 py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 hover:brightness-110 disabled:opacity-60 transition-colors"
+                      style={{ backgroundColor: '#d4930e', color: '#fff' }}
+                    >
+                      {sendingDraft ? <><Loader2 size={14} className="animate-spin" /> Sending...</> : <><MailOpen size={14} /> Send Now</>}
+                    </button>
+                  )}
+                  <button
+                    onClick={logEmailAsActivity}
+                    className="flex-1 py-2.5 rounded-lg text-sm font-medium opacity-70 hover:opacity-100 transition-opacity"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
+                  >
+                    Log as Activity Only
+                  </button>
+                </div>
+                {!contact?.email && (
+                  <p className="text-xs text-red-400/70 text-center">No email address on file — add one to send directly</p>
+                )}
               </div>
             )}
           </div>
