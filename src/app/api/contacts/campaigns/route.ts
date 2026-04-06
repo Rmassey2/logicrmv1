@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     // Fetch rows for this contact
     const { data: enrollments, error: enrollErr } = await supabase
       .from('campaign_contacts')
-      .select('id, status, created_at, campaign_id')
+      .select('id, status, campaign_id')
       .eq('contact_id', contactId)
 
     console.log('[contacts/campaigns] key type:', serviceKey ? 'service_role' : 'anon')
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
       id: e.id,
       campaign_id: e.campaign_id,
       status: e.status,
-      created_at: e.created_at,
+      created_at: null,
       campaign_name: campMap.get(e.campaign_id)?.name || 'Unknown',
       campaign_status: campMap.get(e.campaign_id)?.status || 'draft',
     }))
