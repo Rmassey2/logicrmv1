@@ -114,11 +114,13 @@ export default function CampaignDetailPage() {
     }
     setCampaign(camp as Campaign)
 
-    const { data: enrollments } = await supabase
+    const { data: enrollments, error: enrollErr } = await supabase
       .from('campaign_contacts')
-      .select('id, contact_id, status')
+      .select('id, contact_id, status, user_id')
       .eq('campaign_id', id)
       .eq('status', 'active')
+
+    console.log('[campaign] Enrollments:', enrollments, 'error:', enrollErr)
 
     if (enrollments && enrollments.length > 0) {
       const contactIds = enrollments.map(e => e.contact_id)

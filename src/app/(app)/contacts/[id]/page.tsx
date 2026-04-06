@@ -216,18 +216,30 @@ export default function ContactDetailPage() {
         setCompanyId(compMatch?.id ?? null)
       }
 
-      // Load enrolled campaigns — two-step query (reliable without FK)
-      console.log('[contact] Loading campaigns for contact_id:', id)
+      // Load enrolled campaigns
+      console.log('[contact] Loading campaigns for contact_id:', id, 'user_id:', user.id)
+
+      // First: debug query to see ALL campaign_contacts for this user
+      const { data: allCC, error: allCCErr } = await supabase
+        .from('campaign_contacts')
+        .select('id, contact_id, campaign_id, status, user_id')
+        .eq('user_id', user.id)
+        .limit(20)
+      console.log('[contact] All campaign_contacts for user:', allCC, 'error:', allCCErr)
+
+      // Query by contact_id
       const { data: enrollments, error: enrollErr } = await supabase
         .from('campaign_contacts')
         .select('campaign_id, created_at, status')
         .eq('contact_id', id)
-        .neq('status', 'removed')
+      console.log('[contact] Enrollments for contact_id:', id, '=>', enrollments, 'error:', enrollErr)
 
-      console.log('[contact] Campaign enrollments:', enrollments, 'error:', enrollErr)
+      // Filter out removed in JS (more visible for debugging)
+      const activeEnrollments = (enrollments ?? []).filter(e => e.status !== 'removed')
+      console.log('[contact] Active enrollments:', activeEnrollments.length)
 
-      if (enrollments && enrollments.length > 0) {
-        const campIds = enrollments.map(e => e.campaign_id)
+      if (activeEnrollments.length > 0) {
+        const campIds = activeEnrollments.map(e => e.campaign_id)
         const { data: campData } = await supabase
           .from('email_campaigns')
           .select('id, name')
@@ -235,10 +247,9 @@ export default function ContactDetailPage() {
 
         console.log('[contact] Campaign names:', campData)
         const campMap = new Map((campData ?? []).map(c => [c.id, c.name]))
-        // Deduplicate by campaign_id (keep first)
         const seen = new Set<string>()
-        const deduped: typeof enrollments = []
-        for (const e of enrollments) {
+        const deduped: typeof activeEnrollments = []
+        for (const e of activeEnrollments) {
           if (!seen.has(e.campaign_id)) {
             seen.add(e.campaign_id)
             deduped.push(e)
