@@ -18,11 +18,23 @@ export async function GET(req: NextRequest) {
     .select('id, status, created_at, campaign_id')
     .eq('contact_id', contactId)
 
-  if (enrollErr) return NextResponse.json({ error: enrollErr.message }, { status: 500 })
+  // Count total rows in table (no filters at all)
+  const { count } = await supabase
+    .from('campaign_contacts')
+    .select('id', { count: 'exact', head: true })
+
+  console.log('[contacts/campaigns] contactId:', contactId)
+  console.log('[contacts/campaigns] total rows in table:', count)
+  console.log('[contacts/campaigns] rows for this contact:', enrollments?.length ?? 0)
+  console.log('[contacts/campaigns] raw data:', JSON.stringify(enrollments))
+  console.log('[contacts/campaigns] error:', enrollErr)
+
+  if (enrollErr) return NextResponse.json({ error: enrollErr.message, totalRows: count }, { status: 500 })
 
   // Filter out 'removed' in JS so NULL status rows are included
   const active = (enrollments ?? []).filter(e => e.status !== 'removed')
-  if (active.length === 0) return NextResponse.json({ data: [] })
+  console.log('[contacts/campaigns] active (non-removed):', active.length)
+  if (active.length === 0) return NextResponse.json({ data: [], debug: { totalRows: count, rawForContact: enrollments?.length ?? 0 } })
 
   // Fetch campaign names
   const campIds = Array.from(new Set(active.map(e => e.campaign_id)))
@@ -42,5 +54,5 @@ export async function GET(req: NextRequest) {
     campaign_status: campMap.get(e.campaign_id)?.status || 'draft',
   }))
 
-  return NextResponse.json({ data })
+  return NextResponse.json({ data, debug: { totalRows: count, rawForContact: enrollments?.length ?? 0, activeCount: active.length } })
 }
