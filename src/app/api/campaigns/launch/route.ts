@@ -61,6 +61,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, status: 'paused' })
     }
 
+    // Handle resume action
+    if (action === 'resume') {
+      if (!campaign.instantly_campaign_id) {
+        return NextResponse.json({ error: 'Campaign not linked to Instantly' }, { status: 400 })
+      }
+
+      const { launchCampaign: activateCampaign } = await import('@/lib/instantly')
+      const resumeRes = await activateCampaign(campaign.instantly_campaign_id)
+      if (!resumeRes.ok) {
+        return NextResponse.json({ error: `Resume failed: ${resumeRes.error}` }, { status: 500 })
+      }
+
+      await supabase
+        .from('email_campaigns')
+        .update({ status: 'active' })
+        .eq('id', campaign_id)
+
+      return NextResponse.json({ success: true, status: 'active' })
+    }
+
     // 3. Query campaign_contacts joined with contacts
     const { data: enrollments, error: enrollError } = await supabase
       .from('campaign_contacts')

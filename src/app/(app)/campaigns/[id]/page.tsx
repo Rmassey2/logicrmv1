@@ -228,24 +228,26 @@ export default function CampaignDetailPage() {
 
   // ── Pause campaign ─────────────────────────────────────────────────────────
 
-  async function handlePause() {
+  async function handlePauseResume() {
     setPausing(true)
+    const isPaused = campaign?.status === 'paused'
+    const action = isPaused ? 'resume' : 'pause'
     try {
       const headers = await getAuthHeaders()
       const res = await fetch('/api/campaigns/launch', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ campaign_id: id, action: 'pause' }),
+        body: JSON.stringify({ campaign_id: id, action }),
       })
       const data = await res.json()
       if (!res.ok) {
-        toast.error(data.error ?? 'Pause failed')
+        toast.error(data.error ?? `${action} failed`)
       } else {
-        toast.success('Campaign paused')
+        toast.success(isPaused ? 'Campaign resumed' : 'Campaign paused')
         loadData()
       }
     } catch {
-      toast.error('Pause failed')
+      toast.error(`${action} failed`)
     }
     setPausing(false)
   }
@@ -482,6 +484,7 @@ export default function CampaignDetailPage() {
   const StatusIcon = cfg.icon
   const isDraft = campaign.status === 'draft' || !campaign.status
   const isActive = campaign.status === 'active'
+  const isPaused = campaign.status === 'paused'
   const hasInstantly = !!campaign.instantly_campaign_id
 
   const recipientCount = campaign.recipient_count ?? contacts.length
@@ -542,14 +545,14 @@ export default function CampaignDetailPage() {
                 {launching ? 'Launching...' : 'Launch Campaign'}
               </button>
             )}
-            {isActive && (
+            {(isActive || isPaused) && (
               <button
-                onClick={handlePause}
+                onClick={handlePauseResume}
                 disabled={pausing}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm text-orange-400 border border-orange-500/30 hover:bg-orange-500/10 disabled:opacity-60 transition-colors"
+                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm disabled:opacity-60 transition-colors ${isPaused ? 'text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/10' : 'text-orange-400 border border-orange-500/30 hover:bg-orange-500/10'}`}
               >
-                <Pause className="w-4 h-4" />
-                {pausing ? 'Pausing...' : 'Pause'}
+                {isPaused ? <Rocket className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                {pausing ? (isPaused ? 'Resuming...' : 'Pausing...') : (isPaused ? 'Resume' : 'Pause')}
               </button>
             )}
             {hasInstantly && (
