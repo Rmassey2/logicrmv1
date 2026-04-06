@@ -82,6 +82,7 @@ export default function AiSequencePage() {
   const router = useRouter()
 
   // Form
+  const [campaignName, setCampaignName] = useState('')
   const [segment, setSegment] = useState(SEGMENTS[0])
   const [customSegment, setCustomSegment] = useState('')
   const [contactTitle, setContactTitle] = useState('')
@@ -111,6 +112,7 @@ export default function AiSequencePage() {
   // ── Generate ───────────────────────────────────────────────────────────────
 
   async function handleGenerate() {
+    if (!campaignName.trim()) { toast.error('Enter a campaign name.'); return }
     if (!contactTitle.trim()) { toast.error('Enter a contact title.'); return }
     if (!painPoint.trim()) { toast.error('Enter a pain point.'); return }
     const effectiveSegment = segment === 'Custom' ? customSegment.trim() : segment
@@ -241,7 +243,7 @@ export default function AiSequencePage() {
 
     const { error } = await supabase.from('email_campaigns').insert({
       user_id: user.id,
-      name: `AI Sequence: ${segment} — ${contactTitle}`,
+      name: campaignName.trim(),
       subject: sequence[0].subject,
       body: combinedBody,
       status: 'draft',
@@ -284,6 +286,17 @@ export default function AiSequencePage() {
 
       {/* ── Input Form ── */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-6 sm:p-8 mb-8 space-y-5">
+        <div>
+          <label className={labelClass}>Campaign Name</label>
+          <input
+            type="text"
+            placeholder="e.g. April Shippers — Dry Van"
+            value={campaignName}
+            onChange={e => setCampaignName(e.target.value)}
+            className={inputClass}
+          />
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div>
             <label className={labelClass}>Target Segment</label>
