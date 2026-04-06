@@ -141,7 +141,7 @@ export async function launchCampaign(campaignId: string) {
 // ─── Pause a campaign ────────────────────────────────────────────────────────
 
 export async function pauseCampaign(campaignId: string) {
-  return request(`/campaigns/${campaignId}/pause`, {
+  return request(`/campaigns/${campaignId}/stop`, {
     method: 'POST',
     body: JSON.stringify({ id: campaignId }),
   })
