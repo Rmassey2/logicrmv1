@@ -114,15 +114,17 @@ export default function CampaignDetailPage() {
     }
     setCampaign(camp as Campaign)
 
-    const { data: enrollments, error: enrollErr } = await supabase
+    const { data: rawEnrollments, error: enrollErr } = await supabase
       .from('campaign_contacts')
       .select('id, contact_id, status, user_id')
       .eq('campaign_id', id)
-      .eq('status', 'active')
 
-    console.log('[campaign] Enrollments:', enrollments, 'error:', enrollErr)
+    console.log('[campaign] Raw enrollments:', rawEnrollments, 'error:', enrollErr)
 
-    if (enrollments && enrollments.length > 0) {
+    // Filter in JS so NULL status rows are included (only exclude 'removed')
+    const enrollments = (rawEnrollments ?? []).filter(e => e.status !== 'removed')
+
+    if (enrollments.length > 0) {
       const contactIds = enrollments.map(e => e.contact_id)
       const { data: contactData } = await supabase
         .from('contacts')
