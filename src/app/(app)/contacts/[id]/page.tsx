@@ -216,51 +216,30 @@ export default function ContactDetailPage() {
         setCompanyId(compMatch?.id ?? null)
       }
 
-      // Load enrolled campaigns
-      console.log('[contact] Loading campaigns for contact_id:', id, 'user_id:', user.id)
-
-      // First: debug query to see ALL campaign_contacts for this user
-      const { data: allCC, error: allCCErr } = await supabase
-        .from('campaign_contacts')
-        .select('id, contact_id, campaign_id, status, user_id')
-        .eq('user_id', user.id)
-        .limit(20)
-      console.log('[contact] All campaign_contacts for user:', allCC, 'error:', allCCErr)
-
-      // Query by contact_id
-      const { data: enrollments, error: enrollErr } = await supabase
-        .from('campaign_contacts')
-        .select('campaign_id, created_at, status')
-        .eq('contact_id', id)
-      console.log('[contact] Enrollments for contact_id:', id, '=>', enrollments, 'error:', enrollErr)
-
-      // Filter out removed in JS (more visible for debugging)
-      const activeEnrollments = (enrollments ?? []).filter(e => e.status !== 'removed')
-      console.log('[contact] Active enrollments:', activeEnrollments.length)
-
-      if (activeEnrollments.length > 0) {
-        const campIds = activeEnrollments.map(e => e.campaign_id)
-        const { data: campData } = await supabase
-          .from('email_campaigns')
-          .select('id, name')
-          .in('id', campIds)
-
-        console.log('[contact] Campaign names:', campData)
-        const campMap = new Map((campData ?? []).map(c => [c.id, c.name]))
-        const seen = new Set<string>()
-        const deduped: typeof activeEnrollments = []
-        for (const e of activeEnrollments) {
-          if (!seen.has(e.campaign_id)) {
-            seen.add(e.campaign_id)
-            deduped.push(e)
+      // Load enrolled campaigns via API route (bypasses RLS)
+      try {
+        const campRes = await fetch(`/api/contacts/campaigns?contactId=${id}`)
+        const campResult = await campRes.json()
+        console.log('[contact] Campaigns API result:', campResult)
+        if (campResult.data && campResult.data.length > 0) {
+          const seen = new Set<string>()
+          const deduped: typeof campResult.data = []
+          for (const e of campResult.data) {
+            if (!seen.has(e.campaign_id)) {
+              seen.add(e.campaign_id)
+              deduped.push(e)
+            }
           }
+          setEnrolledCampaigns(deduped.map((e: { campaign_id: string; campaign_name: string; created_at: string }) => ({
+            campaign_id: e.campaign_id,
+            name: e.campaign_name,
+            created_at: e.created_at,
+          })))
+        } else {
+          setEnrolledCampaigns([])
         }
-        setEnrolledCampaigns(deduped.map(e => ({
-          campaign_id: e.campaign_id,
-          name: campMap.get(e.campaign_id) || 'Unknown',
-          created_at: e.created_at,
-        })))
-      } else {
+      } catch (err) {
+        console.error('[contact] Failed to fetch campaigns:', err)
         setEnrolledCampaigns([])
       }
 
