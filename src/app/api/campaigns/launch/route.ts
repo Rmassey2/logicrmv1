@@ -118,6 +118,92 @@ export async function POST(req: NextRequest) {
 
     const instantlyCampaignId = createRes.data.id
 
+    // 4b. Fetch and push email sequences to Instantly
+    const { data: sequences, error: seqError } = await supabase
+      .from('email_sequences')
+      .select('touch_number, day_number, subject, body, label')
+      .eq('campaign_id', campaign_id)
+      .order('touch_number', { ascending: true })
+
+    console.log('[launch] Step 4b - Sequences:', {
+      count: sequences?.length,
+      error: seqError?.message,
+    })
+
+    if (sequences && sequences.length > 0) {
+      // Also try parsing from campaign.body if no sequences table rows
+      for (let i = 0; i < sequences.length; i++) {
+        const seq = sequences[i]
+        // Calculate delay: day difference from previous step (0 for first)
+        const delay = i === 0 ? 0 : (seq.day_number ?? 0) - (sequences[i - 1]?.day_number ?? 0)
+
+        const seqPayload = {
+          campaign_id: instantlyCampaignId,
+          sequence_number: i + 1,
+          subject: seq.subject || `Touch ${seq.touch_number}`,
+          body: seq.body || '',
+          delay: Math.max(delay, 0),
+        }
+
+        console.log(`[launch] Pushing sequence step ${i + 1}:`, seqPayload)
+
+        try {
+          const seqRes = await fetch('https://api.instantly.ai/api/v2/campaigns/emails', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.INSTANTLY_API_KEY}`,
+            },
+            body: JSON.stringify(seqPayload),
+          })
+          const seqText = await seqRes.text()
+          console.log(`[launch] Sequence step ${i + 1} response:`, seqRes.status, seqText)
+        } catch (err) {
+          console.error(`[launch] Sequence step ${i + 1} failed:`, err)
+        }
+      }
+    } else if (campaign.body) {
+      // Fallback: parse concatenated body into touches and push each
+      const touches = campaign.body.split(/---\s*Touch\s+/).filter(Boolean)
+      let stepNum = 0
+      const daySchedule = [1, 3, 5, 8, 12, 16, 21]
+      for (const block of touches) {
+        const headerMatch = block.match(/^(\d+)\s*\(Day\s*(\d+)\):\s*(.+?)\s*---\s*\n/)
+        if (!headerMatch) continue
+        const rest = block.slice(headerMatch[0].length)
+        const subjectMatch = rest.match(/^Subject:\s*(.+)\n\n/)
+        const subject = subjectMatch ? subjectMatch[1].trim() : `Touch ${headerMatch[1]}`
+        const bodyText = subjectMatch ? rest.slice(subjectMatch[0].length).trim() : rest.trim()
+        const delay = stepNum === 0 ? 0 : (daySchedule[stepNum] ?? 3) - (daySchedule[stepNum - 1] ?? 0)
+        stepNum++
+
+        const seqPayload = {
+          campaign_id: instantlyCampaignId,
+          sequence_number: stepNum,
+          subject,
+          body: bodyText,
+          delay: Math.max(delay, 0),
+        }
+
+        console.log(`[launch] Pushing parsed sequence step ${stepNum}:`, seqPayload)
+
+        try {
+          const seqRes = await fetch('https://api.instantly.ai/api/v2/campaigns/emails', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.INSTANTLY_API_KEY}`,
+            },
+            body: JSON.stringify(seqPayload),
+          })
+          const seqText = await seqRes.text()
+          console.log(`[launch] Parsed sequence step ${stepNum} response:`, seqRes.status, seqText)
+        } catch (err) {
+          console.error(`[launch] Parsed sequence step ${stepNum} failed:`, err)
+        }
+      }
+    }
+
     // 5. Add leads to Instantly
     const leads: InstantlyLead[] = contacts.map(c => ({
       email: c.email!,
