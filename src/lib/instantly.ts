@@ -95,51 +95,33 @@ export async function addLeadsToCampaign(
     return { ok: false, error: 'No leads with email addresses' }
   }
 
-  // Try batch endpoint first (Instantly v2)
-  const batchPayload = {
-    campaign_id: campaignId,
-    leads: validLeads.map(l => ({
-      email: l.email.trim(),
-      first_name: l.firstName ?? '',
-      last_name: l.lastName ?? '',
-      company_name: l.companyName ?? '',
-    })),
-  }
+  // Push leads one at a time to /leads endpoint (Instantly v2)
+  console.log('[instantly] addLeadsToCampaign: pushing', validLeads.length, 'leads to campaign', campaignId)
 
-  console.log('[instantly] addLeadsToCampaign batch request:', JSON.stringify(batchPayload, null, 2))
-
-  const batchResult = await request('/leads/batch', {
-    method: 'POST',
-    body: JSON.stringify(batchPayload),
-  })
-
-  console.log('[instantly] addLeadsToCampaign batch response:', JSON.stringify(batchResult, null, 2))
-
-  if (batchResult.ok) return batchResult
-
-  // Fallback: try single lead endpoint for each lead
-  console.log('[instantly] Batch failed, trying single lead endpoint...')
   let lastError = ''
   let successCount = 0
   for (const l of validLeads) {
-    const singlePayload = {
+    const payload = {
       email: l.email.trim(),
       first_name: l.firstName ?? '',
       last_name: l.lastName ?? '',
       company_name: l.companyName ?? '',
       campaign: campaignId,
     }
-    const singleResult = await request('/leads', {
+    console.log('[instantly] Pushing lead:', payload.email)
+    const result = await request('/leads', {
       method: 'POST',
-      body: JSON.stringify(singlePayload),
+      body: JSON.stringify(payload),
     })
-    if (singleResult.ok) {
+    if (result.ok) {
       successCount++
     } else {
-      lastError = singleResult.error ?? 'Unknown'
-      console.error('[instantly] Single lead push failed:', l.email, lastError)
+      lastError = result.error ?? 'Unknown'
+      console.error('[instantly] Lead push failed:', l.email, lastError)
     }
   }
+
+  console.log('[instantly] addLeadsToCampaign result:', { successCount, failed: validLeads.length - successCount })
 
   if (successCount > 0) {
     return { ok: true, data: { added: successCount, failed: validLeads.length - successCount } }
