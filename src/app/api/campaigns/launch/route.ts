@@ -119,31 +119,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No contacts with email found' }, { status: 400 })
     }
 
-    // 4. Create campaign in Instantly.ai
-    const createRes = await createCampaign(
-      campaign.name,
-      campaign.subject,
-      campaign.body ?? ''
-    )
-
-    console.log('[launch] Step 4 - Instantly create:', {
-      ok: createRes.ok,
-      id: createRes.data?.id,
-      error: createRes.error,
-    })
-
-    if (!createRes.ok || !createRes.data?.id) {
-      return NextResponse.json({ error: `Instantly create failed: ${createRes.error}` }, { status: 500 })
-    }
-
-    const instantlyCampaignId = createRes.data.id
-
     // 4a. Build email signature from user profile
     const campaignUserId = campaign.user_id
     let signature = ''
+    let sigName = 'Jarrett Bailey'
     if (campaignUserId) {
       const { data: authUser } = await supabase.auth.admin.getUserById(campaignUserId)
-      const sigName = authUser?.user?.user_metadata?.display_name || 'Jarrett Bailey'
+      sigName = authUser?.user?.user_metadata?.display_name || 'Jarrett Bailey'
       const { data: settingsData } = await supabase
         .from('user_settings')
         .select('key, value')
@@ -160,6 +142,26 @@ export async function POST(req: NextRequest) {
       }
       console.log('[launch] Signature:', signature)
     }
+
+    // 4. Create campaign in Instantly.ai
+    const createRes = await createCampaign(
+      campaign.name,
+      campaign.subject,
+      campaign.body ?? '',
+      sigName
+    )
+
+    console.log('[launch] Step 4 - Instantly create:', {
+      ok: createRes.ok,
+      id: createRes.data?.id,
+      error: createRes.error,
+    })
+
+    if (!createRes.ok || !createRes.data?.id) {
+      return NextResponse.json({ error: `Instantly create failed: ${createRes.error}` }, { status: 500 })
+    }
+
+    const instantlyCampaignId = createRes.data.id
 
     // 4b. Fetch email sequences and push to Instantly via PATCH /campaigns/:id
     const { data: sequences, error: seqError } = await supabase

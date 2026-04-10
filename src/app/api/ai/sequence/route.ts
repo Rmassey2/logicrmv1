@@ -21,10 +21,10 @@ Rules:
 - Write like a real person texting a colleague, not a marketing department
 - Every email references the prospect's specific pain point
 - No bullet points, no bold text, no HTML
-- Subject lines are 4-8 words, lowercase, curiosity-driven
+- Subject lines are 4-8 words, lowercase, curiosity-driven. NEVER use merge tags like {{first_name}} or {{company}} in subject lines — subject lines must be plain text only
 - Always include a soft CTA (question, not a demand)
 - Use the sender's real name and company
-- Include merge tags {{first_name}} and {{company}} where appropriate
+- In the email BODY only (not subject), include merge tags {{first_name}} and {{company}} where appropriate
 - CRITICAL: Never mention the segment name or industry label in the email copy. Write naturally as if speaking directly to one person. Use "you", "your team", "your freight" — never say "manufacturers", "distributors", "retailers", or any industry category name. The segment only influences which pain points and context you use, it must never appear in the actual email text.
 ${tone ? `\nWrite all emails in this tone: ${tone}. ${toneDescription}. The tone should feel natural and human — never robotic or templated. Each email should sound like it was written by the same person but adapted to the context of that touch.` : ''}
 
