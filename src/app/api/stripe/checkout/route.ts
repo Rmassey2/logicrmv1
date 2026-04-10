@@ -8,8 +8,8 @@ export async function POST(req: NextRequest) {
     const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
     const PRICE_IDS: Record<string, string> = {
-      rep: process.env.STRIPE_PRICE_REP || '',
-      team: process.env.STRIPE_PRICE_TEAM || '',
+      rep: process.env.NEXT_PUBLIC_STRIPE_REP_PRICE_ID || '',
+      team: process.env.NEXT_PUBLIC_STRIPE_TEAM_PRICE_ID || '',
     }
 
     const { plan, user_id } = await req.json()
