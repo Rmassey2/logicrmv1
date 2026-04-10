@@ -143,14 +143,14 @@ export async function POST(req: NextRequest) {
     let signature = ''
     if (campaignUserId) {
       const { data: authUser } = await supabase.auth.admin.getUserById(campaignUserId)
-      const sigName = authUser?.user?.user_metadata?.display_name || ''
+      const sigName = authUser?.user?.user_metadata?.display_name || 'Jarrett Bailey'
       const { data: settingsData } = await supabase
         .from('user_settings')
         .select('key, value')
         .eq('user_id', campaignUserId)
         .in('key', ['company_name', 'company_website'])
       const sMap = new Map((settingsData ?? []).map(s => [s.key, s.value]))
-      const sigCompany = sMap.get('company_name') || ''
+      const sigCompany = sMap.get('company_name') || 'Maco Logistics'
       const sigWebsite = sMap.get('company_website') || ''
       const sigEmail = authUser?.user?.email || ''
       const sigLines = [sigName, sigCompany, sigWebsite, sigEmail].filter(Boolean)

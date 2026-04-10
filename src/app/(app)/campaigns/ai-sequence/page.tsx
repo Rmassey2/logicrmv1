@@ -119,23 +119,38 @@ export default function AiSequencePage() {
   const [perEmailTone, setPerEmailTone] = useState<Record<number, string>>({})
   const [toneOverrideIdx, setToneOverrideIdx] = useState<number | null>(null)
 
-  // ── Load signature on mount ────────────────────────────────────────────────
+  // ── Load signature profile data on mount ────────────────────────────────
+  const [sigProfile, setSigProfile] = useState<{ name: string; company: string; website: string; email: string }>({ name: '', company: '', website: '', email: '' })
+
   useEffect(() => {
     async function loadSig() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const name = user.user_metadata?.display_name || ''
       const { data: s } = await supabase
         .from('user_settings')
         .select('key, value')
         .eq('user_id', user.id)
         .in('key', ['company_name', 'company_website'])
       const m = new Map((s ?? []).map(r => [r.key, r.value]))
-      const lines = [name, m.get('company_name') || '', m.get('company_website') || '', user.email || ''].filter(Boolean)
-      setSignaturePreview(lines.join('\n'))
+      setSigProfile({
+        name: user.user_metadata?.display_name || '',
+        company: m.get('company_name') || '',
+        website: m.get('company_website') || '',
+        email: user.email || '',
+      })
     }
     loadSig()
   }, [])
+
+  // Rebuild signature whenever profile data or sender fields change
+  useEffect(() => {
+    const name = sigProfile.name || senderName
+    const company = sigProfile.company || senderCompany
+    const website = sigProfile.website || ''
+    const email = sigProfile.email || ''
+    const lines = [name, company, website, email].filter(Boolean)
+    setSignaturePreview(lines.join('\n'))
+  }, [sigProfile, senderName, senderCompany])
 
   // ── Generate ───────────────────────────────────────────────────────────────
 
