@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import Sidebar from '@/components/Sidebar'
+import { getSubscription, isExpired, trialDaysLeft, type OrgSubscription } from '@/lib/subscription'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,17 +13,29 @@ const supabase = createClient(
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [ready, setReady] = useState(false)
+  const [sub, setSub] = useState<OrgSubscription | null>(null)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) {
         router.push('/auth/login')
-      } else {
-        setReady(true)
+        return
       }
+
+      const subscription = await getSubscription(user.id)
+      setSub(subscription)
+
+      // Paywall: redirect to pricing if expired (but allow /pricing itself)
+      if (pathname !== '/pricing' && isExpired(subscription)) {
+        router.push('/pricing')
+        return
+      }
+
+      setReady(true)
     })
-  }, [router])
+  }, [router, pathname])
 
   if (!ready) {
     return (
@@ -40,10 +53,30 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     )
   }
 
+  const showTrialBanner = sub?.subscription_status === 'trial' && sub?.trial_ends_at
+  const daysLeft = trialDaysLeft(sub)
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#0f1c35' }}>
       <Sidebar />
-      <main className="ml-60 min-h-screen">{children}</main>
+      <main className="ml-60 min-h-screen">
+        {showTrialBanner && (
+          <div
+            className="px-4 py-2.5 text-center text-sm font-medium flex items-center justify-center gap-3"
+            style={{ backgroundColor: 'rgba(212,147,14,0.12)', color: '#d4930e', borderBottom: '1px solid rgba(212,147,14,0.2)' }}
+          >
+            <span>{daysLeft} day{daysLeft !== 1 ? 's' : ''} left in your free trial</span>
+            <button
+              onClick={() => router.push('/pricing')}
+              className="px-3 py-1 rounded-lg text-xs font-bold hover:brightness-110 transition-colors"
+              style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}
+            >
+              Upgrade Now
+            </button>
+          </div>
+        )}
+        {children}
+      </main>
     </div>
   )
 }

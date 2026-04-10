@@ -34,6 +34,7 @@ export default function AdminPage() {
   const [orgName, setOrgName] = useState('')
   const [reps, setReps] = useState<RepStats[]>([])
   const [activity, setActivity] = useState<ActivityItem[]>([])
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
 
   const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -49,6 +50,19 @@ export default function AdminPage() {
       .maybeSingle()
 
     if (!membership) { router.push('/dashboard'); return }
+
+    // Team gate: check if org has team plan
+    const { data: orgPlan } = await supabase
+      .from('organizations')
+      .select('plan, subscription_status')
+      .eq('id', membership.org_id)
+      .single()
+
+    if (orgPlan && orgPlan.subscription_status !== 'exempt' && orgPlan.plan !== 'team') {
+      setShowUpgradeModal(true)
+      setLoading(false)
+      return
+    }
 
     const orgId = membership.org_id
 
@@ -188,6 +202,31 @@ export default function AdminPage() {
     return (
       <div className="flex items-center justify-center h-full min-h-screen">
         <p className="text-blue-300 text-sm">Loading team dashboard...</p>
+      </div>
+    )
+  }
+
+  if (showUpgradeModal) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-screen">
+        <div className="rounded-2xl p-8 w-full max-w-md text-center" style={{ backgroundColor: '#162847', border: '1px solid rgba(212,147,14,0.3)' }}>
+          <Users className="w-12 h-12 mx-auto mb-4" style={{ color: '#d4930e' }} />
+          <h3 className="text-xl font-bold text-white mb-2">Upgrade to Team Plan</h3>
+          <p className="text-blue-300/70 text-sm mb-6">The Team Dashboard requires the Team plan ($149/mo). Get unlimited users, rep performance tracking, and org-wide pipeline visibility.</p>
+          <button
+            onClick={() => router.push('/pricing')}
+            className="px-6 py-3 rounded-lg font-semibold text-sm hover:brightness-110 transition-colors"
+            style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}
+          >
+            View Plans
+          </button>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="block mx-auto mt-3 text-sm text-blue-300/50 hover:text-blue-300 transition-colors"
+          >
+            Back to Dashboard
+          </button>
+        </div>
       </div>
     )
   }
