@@ -1,6 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
+
+// GET — load company info from organizations table
+export async function GET(req: NextRequest) {
+  try {
+    const userId = req.nextUrl.searchParams.get('userId')
+    if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
+
+    const supabase = getSupabase()
+
+    const { data: membership } = await supabase
+      .from('organization_members')
+      .select('org_id')
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle()
+
+    if (!membership) return NextResponse.json({ company: null })
+
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('company_name, company_phone, company_website, company_address')
+      .eq('id', membership.org_id)
+      .single()
+
+    return NextResponse.json({ company: org })
+  } catch (err) {
+    console.error('[settings GET] Error:', err)
+    return NextResponse.json({ error: String(err) }, { status: 500 })
+  }
+}
+
+// POST — save company info to organizations table
 export async function POST(req: NextRequest) {
   try {
     const { user_id, settings } = await req.json()
@@ -8,29 +46,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'user_id and settings required' }, { status: 400 })
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const supabase = getSupabase()
 
-    const errors: string[] = []
-    for (const { key, value } of settings as { key: string; value: string }[]) {
-      // Delete existing then insert (avoids unique constraint issues)
-      await supabase.from('user_settings').delete().eq('user_id', user_id).eq('key', key)
-      const { error } = await supabase.from('user_settings').insert({ user_id, key, value })
-      if (error) {
-        console.error('[settings] Failed to save', key, error.message)
-        errors.push(key)
-      }
+    const { data: membership } = await supabase
+      .from('organization_members')
+      .select('org_id')
+      .eq('user_id', user_id)
+      .limit(1)
+      .maybeSingle()
+
+    if (!membership) {
+      return NextResponse.json({ error: 'No organization found' }, { status: 400 })
     }
 
-    if (errors.length > 0) {
-      return NextResponse.json({ error: `Failed to save: ${errors.join(', ')}` }, { status: 500 })
+    // Build update object from settings array
+    const update: Record<string, string> = {}
+    for (const { key, value } of settings as { key: string; value: string }[]) {
+      update[key] = value
+    }
+
+    console.log('[settings POST] Updating org:', membership.org_id, update)
+
+    const { error } = await supabase
+      .from('organizations')
+      .update(update)
+      .eq('id', membership.org_id)
+
+    if (error) {
+      console.error('[settings POST] Update failed:', error.message)
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('[settings] Error:', err)
+    console.error('[settings POST] Error:', err)
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }

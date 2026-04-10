@@ -119,23 +119,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No contacts with email found' }, { status: 400 })
     }
 
-    // 4a. Build email signature from user profile
+    // 4a. Build email signature from user profile + organizations table
     const campaignUserId = campaign.user_id
     let signature = ''
     let sigName = 'Jarrett Bailey'
     if (campaignUserId) {
       const { data: authUser } = await supabase.auth.admin.getUserById(campaignUserId)
       sigName = authUser?.user?.user_metadata?.display_name || 'Jarrett Bailey'
-      const { data: settingsData } = await supabase
-        .from('user_settings')
-        .select('key, value')
+
+      // Get company info from organizations table
+      const { data: membership } = await supabase
+        .from('organization_members')
+        .select('org_id')
         .eq('user_id', campaignUserId)
-        .in('key', ['company_name', 'company_phone', 'company_website'])
-      const sMap = new Map((settingsData ?? []).map(s => [s.key, s.value]))
-      const sigCompany = sMap.get('company_name') || 'Maco Logistics'
-      const sigPhone = sMap.get('company_phone') || ''
+        .limit(1)
+        .maybeSingle()
+
+      let sigCompany = 'Maco Logistics'
+      let sigPhone = ''
+      let sigWebsite = ''
+      if (membership) {
+        const { data: org } = await supabase
+          .from('organizations')
+          .select('company_name, company_phone, company_website')
+          .eq('id', membership.org_id)
+          .single()
+        if (org) {
+          sigCompany = org.company_name || 'Maco Logistics'
+          sigPhone = org.company_phone || ''
+          sigWebsite = org.company_website || ''
+        }
+      }
+
       const sigEmail = authUser?.user?.email || ''
-      const sigWebsite = sMap.get('company_website') || ''
       const sigLines = [sigName, sigCompany, sigPhone, sigEmail, sigWebsite].filter(Boolean)
       if (sigLines.length > 0) {
         signature = '\n\n' + sigLines.join('\n')

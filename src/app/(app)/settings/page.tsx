@@ -106,17 +106,11 @@ export default function SettingsPage() {
     // Display name from user metadata
     setDisplayName(user.user_metadata?.display_name ?? '')
 
-    // Company settings
-    const { data: settings } = await supabase
-      .from('user_settings')
-      .select('key, value')
-      .eq('user_id', user.id)
-      .in('key', [...COMPANY_KEYS])
-
-    if (settings) {
-      const map: Record<string, string> = {}
-      for (const s of settings) map[s.key] = s.value ?? ''
-      setCompany((prev) => ({ ...prev, ...map }))
+    // Company settings — load from organizations table via API
+    const compRes = await fetch(`/api/settings?userId=${user.id}`)
+    const compData = await compRes.json()
+    if (compData.company) {
+      setCompany(prev => ({ ...prev, ...compData.company }))
     }
 
     // Pipeline stages

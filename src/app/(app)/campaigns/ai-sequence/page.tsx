@@ -126,18 +126,16 @@ export default function AiSequencePage() {
     async function loadSig() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const { data: s } = await supabase
-        .from('user_settings')
-        .select('key, value')
-        .eq('user_id', user.id)
-        .in('key', ['company_name', 'company_phone', 'company_website'])
-      const m = new Map((s ?? []).map(r => [r.key, r.value]))
+      // Load company info from organizations via API
+      const res = await fetch(`/api/settings?userId=${user.id}`)
+      const data = await res.json()
+      const c = data.company || {}
       setSigProfile({
         name: user.user_metadata?.display_name || '',
-        company: m.get('company_name') || '',
-        phone: m.get('company_phone') || '',
+        company: c.company_name || '',
+        phone: c.company_phone || '',
         email: user.email || '',
-        website: m.get('company_website') || '',
+        website: c.company_website || '',
       })
     }
     loadSig()
@@ -285,16 +283,13 @@ export default function AiSequencePage() {
 
     // Build signature from profile
     const sigName = user.user_metadata?.display_name || senderName
-    const { data: settingsData } = await supabase
-      .from('user_settings')
-      .select('key, value')
-      .eq('user_id', user.id)
-      .in('key', ['company_name', 'company_phone', 'company_website'])
-    const settingsMap = new Map((settingsData ?? []).map(s => [s.key, s.value]))
-    const sigCompany = settingsMap.get('company_name') || senderCompany
-    const sigPhone = settingsMap.get('company_phone') || ''
+    const compRes = await fetch(`/api/settings?userId=${user.id}`)
+    const compData = await compRes.json()
+    const c = compData.company || {}
+    const sigCompany = c.company_name || senderCompany
+    const sigPhone = c.company_phone || ''
     const sigEmail = user.email || ''
-    const sigWebsite = settingsMap.get('company_website') || ''
+    const sigWebsite = c.company_website || ''
     const sigLines = [sigName, sigCompany, sigPhone, sigEmail, sigWebsite].filter(Boolean)
     const signature = '\n\n' + sigLines.join('\n')
 
