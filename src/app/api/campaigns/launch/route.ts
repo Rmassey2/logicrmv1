@@ -148,13 +148,14 @@ export async function POST(req: NextRequest) {
         .from('user_settings')
         .select('key, value')
         .eq('user_id', campaignUserId)
-        .in('key', ['company_name', 'company_phone'])
+        .in('key', ['company_name', 'company_website'])
       const sMap = new Map((settingsData ?? []).map(s => [s.key, s.value]))
       const sigCompany = sMap.get('company_name') || ''
-      const sigPhone = sMap.get('company_phone') || ''
+      const sigWebsite = sMap.get('company_website') || ''
       const sigEmail = authUser?.user?.email || ''
-      if (sigName) {
-        signature = `\n\n${sigName}${sigCompany ? '\n' + sigCompany : ''}${sigPhone || sigEmail ? '\n' + [sigPhone, sigEmail].filter(Boolean).join(' | ') : ''}`
+      const sigLines = [sigName, sigCompany, sigWebsite, sigEmail].filter(Boolean)
+      if (sigLines.length > 0) {
+        signature = '\n\n' + sigLines.join('\n')
       }
       console.log('[launch] Signature:', signature)
     }

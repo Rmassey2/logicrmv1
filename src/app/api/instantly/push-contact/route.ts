@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
       first_name: contact.first_name || '',
       last_name: contact.last_name || '',
       company_name: contact.company || '',
+      company: contact.company || '',
       phone: contact.phone || contact.cell_phone || '',
       campaign: instantly_campaign_id,
     }

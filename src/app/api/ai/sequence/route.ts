@@ -24,7 +24,7 @@ Rules:
 - Subject lines are 4-8 words, lowercase, curiosity-driven
 - Always include a soft CTA (question, not a demand)
 - Use the sender's real name and company
-- Include merge tags {{first_name}} and {{company_name}} where appropriate
+- Include merge tags {{first_name}} and {{company}} where appropriate
 - CRITICAL: Never mention the segment name or industry label in the email copy. Write naturally as if speaking directly to one person. Use "you", "your team", "your freight" — never say "manufacturers", "distributors", "retailers", or any industry category name. The segment only influences which pain points and context you use, it must never appear in the actual email text.
 ${tone ? `\nWrite all emails in this tone: ${tone}. ${toneDescription}. The tone should feel natural and human — never robotic or templated. Each email should sound like it was written by the same person but adapted to the context of that touch.` : ''}
 
@@ -54,7 +54,7 @@ Sender: ${senderName} at ${senderCompany}
 Target segment (for context only — DO NOT mention this in the emails): ${segment}
 Contact title: ${contactTitle}
 Key pain point: ${painPoint}
-${companyName ? `Prospect company: ${companyName} (use this in personalization, also keep {{company_name}} merge tags)` : 'Use {{company_name}} merge tag for the company name'}
+${companyName ? `Prospect company: ${companyName} (use this in personalization, also keep {{company}} merge tags)` : 'Use {{company}} merge tag for the company name'}
 Use {{first_name}} merge tag for the contact's first name.
 
 IMPORTANT: The segment is only for your background knowledge of typical pain points and context. Never write the segment name, industry label, or category in any email. Write to one person using "you", "your team", "your freight program", "shippers like you".

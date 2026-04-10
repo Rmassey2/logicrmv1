@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
@@ -108,6 +108,7 @@ export default function AiSequencePage() {
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const [signaturePreview, setSignaturePreview] = useState('')
 
   // Per-card edit state
   const [editingIdx, setEditingIdx] = useState<number | null>(null)
@@ -117,6 +118,24 @@ export default function AiSequencePage() {
   const [rewriting, setRewriting] = useState(false)
   const [perEmailTone, setPerEmailTone] = useState<Record<number, string>>({})
   const [toneOverrideIdx, setToneOverrideIdx] = useState<number | null>(null)
+
+  // ── Load signature on mount ────────────────────────────────────────────────
+  useEffect(() => {
+    async function loadSig() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const name = user.user_metadata?.display_name || ''
+      const { data: s } = await supabase
+        .from('user_settings')
+        .select('key, value')
+        .eq('user_id', user.id)
+        .in('key', ['company_name', 'company_website'])
+      const m = new Map((s ?? []).map(r => [r.key, r.value]))
+      const lines = [name, m.get('company_name') || '', m.get('company_website') || '', user.email || ''].filter(Boolean)
+      setSignaturePreview(lines.join('\n'))
+    }
+    loadSig()
+  }, [])
 
   // ── Generate ───────────────────────────────────────────────────────────────
 
@@ -256,12 +275,13 @@ export default function AiSequencePage() {
       .from('user_settings')
       .select('key, value')
       .eq('user_id', user.id)
-      .in('key', ['company_name', 'company_phone'])
+      .in('key', ['company_name', 'company_website'])
     const settingsMap = new Map((settingsData ?? []).map(s => [s.key, s.value]))
     const sigCompany = settingsMap.get('company_name') || senderCompany
-    const sigPhone = settingsMap.get('company_phone') || ''
+    const sigWebsite = settingsMap.get('company_website') || ''
     const sigEmail = user.email || ''
-    const signature = `\n\n${sigName}\n${sigCompany}${sigPhone || sigEmail ? '\n' + [sigPhone, sigEmail].filter(Boolean).join(' | ') : ''}`
+    const sigLines = [sigName, sigCompany, sigWebsite, sigEmail].filter(Boolean)
+    const signature = '\n\n' + sigLines.join('\n')
 
     // Combine all touches into the campaign body with clear separators
     const combinedBody = sequence.map(t =>
@@ -622,7 +642,7 @@ export default function AiSequencePage() {
                           <label className="block text-[10px] font-semibold uppercase tracking-wide text-blue-300/50 mb-1">
                             Email Body
                           </label>
-                          <p className="text-xs text-blue-200 whitespace-pre-wrap leading-relaxed font-mono">{touch.body}</p>
+                          <p className="text-xs text-blue-200 whitespace-pre-wrap leading-relaxed font-mono">{touch.body}{signaturePreview ? '\n\n' + signaturePreview : ''}</p>
                         </div>
                         <div className="pt-1">
                           <button

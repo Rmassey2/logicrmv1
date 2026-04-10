@@ -444,9 +444,8 @@ export default function SettingsPage() {
               <div className="rounded-lg p-4 text-sm leading-relaxed" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
                 <p className="text-white font-medium">{displayName || 'Your Name'}</p>
                 <p className="text-blue-300/60">{company.company_name || 'Your Company'}</p>
-                <p className="text-blue-300/40 text-xs">
-                  {company.company_phone || '(555) 555-5555'} | {userEmail || 'you@company.com'}
-                </p>
+                {company.company_website && <p className="text-blue-300/50 text-xs">{company.company_website}</p>}
+                <p className="text-blue-300/40 text-xs">{userEmail || 'you@company.com'}</p>
               </div>
               <p className="text-[10px] text-blue-300/30 mt-1">This signature is automatically appended to AI-generated email sequences.</p>
             </div>

@@ -109,6 +109,7 @@ export async function addLeadsToCampaign(
       first_name: l.firstName ?? '',
       last_name: l.lastName ?? '',
       company_name: l.companyName ?? '',
+      company: l.companyName ?? '',
       campaign: campaignId,
     }
     console.log('[instantly] Pushing lead:', payload.email)
