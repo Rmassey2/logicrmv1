@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { GraduationCap, X, Send, Loader2 } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -103,14 +104,14 @@ export default function TrainingChat() {
                   className={`max-w-[85%] rounded-xl px-3 py-2 text-sm leading-relaxed ${
                     msg.role === 'user'
                       ? 'text-white'
-                      : 'text-blue-200'
+                      : 'text-blue-200 chat-markdown'
                   }`}
                   style={{
                     backgroundColor: msg.role === 'user' ? 'rgba(212,147,14,0.2)' : 'rgba(255,255,255,0.05)',
-                    whiteSpace: 'pre-wrap',
+                    ...(msg.role === 'user' ? { whiteSpace: 'pre-wrap' as const } : {}),
                   }}
                 >
-                  {msg.content}
+                  {msg.role === 'user' ? msg.content : <ReactMarkdown>{msg.content}</ReactMarkdown>}
                 </div>
               </div>
             ))}
@@ -147,6 +148,18 @@ export default function TrainingChat() {
           </div>
         </div>
       )}
+      <style jsx global>{`
+        .chat-markdown h1, .chat-markdown h2, .chat-markdown h3 { font-weight: 600; color: #fff; margin: 0.5em 0 0.25em; }
+        .chat-markdown h1 { font-size: 1em; }
+        .chat-markdown h2 { font-size: 0.95em; }
+        .chat-markdown h3 { font-size: 0.9em; }
+        .chat-markdown p { margin: 0.35em 0; }
+        .chat-markdown ul, .chat-markdown ol { margin: 0.35em 0; padding-left: 1.25em; }
+        .chat-markdown li { margin: 0.15em 0; }
+        .chat-markdown strong { color: #fff; font-weight: 600; }
+        .chat-markdown code { background: rgba(255,255,255,0.08); padding: 0.1em 0.3em; border-radius: 3px; font-size: 0.9em; }
+        .chat-markdown a { color: #d4930e; text-decoration: underline; }
+      `}</style>
     </>
   )
 }
