@@ -138,6 +138,27 @@ export async function POST(req: NextRequest) {
 
     const instantlyCampaignId = createRes.data.id
 
+    // 4a. Build email signature from user profile
+    const campaignUserId = campaign.user_id
+    let signature = ''
+    if (campaignUserId) {
+      const { data: authUser } = await supabase.auth.admin.getUserById(campaignUserId)
+      const sigName = authUser?.user?.user_metadata?.display_name || ''
+      const { data: settingsData } = await supabase
+        .from('user_settings')
+        .select('key, value')
+        .eq('user_id', campaignUserId)
+        .in('key', ['company_name', 'company_phone'])
+      const sMap = new Map((settingsData ?? []).map(s => [s.key, s.value]))
+      const sigCompany = sMap.get('company_name') || ''
+      const sigPhone = sMap.get('company_phone') || ''
+      const sigEmail = authUser?.user?.email || ''
+      if (sigName) {
+        signature = `\n\n${sigName}${sigCompany ? '\n' + sigCompany : ''}${sigPhone || sigEmail ? '\n' + [sigPhone, sigEmail].filter(Boolean).join(' | ') : ''}`
+      }
+      console.log('[launch] Signature:', signature)
+    }
+
     // 4b. Fetch email sequences and push to Instantly via PATCH /campaigns/:id
     const { data: sequences, error: seqError } = await supabase
       .from('email_sequences')
@@ -192,7 +213,7 @@ export async function POST(req: NextRequest) {
               variants: [
                 {
                   subject: s.subject,
-                  body: s.body,
+                  body: s.body + signature,
                 },
               ],
             })),
@@ -222,12 +243,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 5. Add leads to Instantly
+    // 5. Add leads to Instantly (ensure all fields are strings, not undefined)
     const leads: InstantlyLead[] = contacts.map(c => ({
       email: c.email!,
-      firstName: c.first_name ?? undefined,
-      lastName: c.last_name ?? undefined,
-      companyName: c.company ?? undefined,
+      firstName: c.first_name || '',
+      lastName: c.last_name || '',
+      companyName: c.company || '',
     }))
 
     const leadsRes = await addLeadsToCampaign(instantlyCampaignId, leads)

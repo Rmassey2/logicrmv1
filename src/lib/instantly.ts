@@ -55,6 +55,8 @@ export async function createCampaign(
       subject,
       body,
       email_list: ['jarrett@macoships.com'],
+      open_tracking: false,
+      link_tracking: false,
       campaign_schedule: {
         schedules: [
           {
