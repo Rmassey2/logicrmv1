@@ -24,8 +24,8 @@ export async function GET(req: NextRequest) {
     console.log('[subscription] membership:', membership, 'error:', memErr?.message)
 
     if (!membership) {
-      // No org membership — treat as exempt so user isn't blocked
-      return NextResponse.json({ subscription: { subscription_status: 'exempt', plan: null, trial_ends_at: null } })
+      // No org membership — no subscription data
+      return NextResponse.json({ subscription: null })
     }
 
     const { data: org, error: orgErr } = await supabase
@@ -37,8 +37,8 @@ export async function GET(req: NextRequest) {
     console.log('[subscription] org:', org, 'error:', orgErr?.message)
 
     if (!org) {
-      // Org not found — treat as exempt so user isn't blocked
-      return NextResponse.json({ subscription: { subscription_status: 'exempt', plan: null, trial_ends_at: null } })
+      // Org not found — no subscription data
+      return NextResponse.json({ subscription: null })
     }
 
     return NextResponse.json({ subscription: org })

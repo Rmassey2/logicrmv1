@@ -40,10 +40,16 @@ export default function LoginPage() {
           .maybeSingle()
 
         if (!membership) {
-          // No invite — create a new org and make them admin
+          // No invite — create a new org and make them admin with 14-day trial
+          const trialEndsAt = new Date(Date.now() + 14 * 86400000).toISOString()
           const { data: org } = await supabase
             .from('organizations')
-            .insert({ name: `${email.split('@')[0]}'s Organization`, owner_id: newUser.id })
+            .insert({
+              name: `${email.split('@')[0]}'s Organization`,
+              owner_id: newUser.id,
+              subscription_status: 'trial',
+              trial_ends_at: trialEndsAt,
+            })
             .select('id')
             .single()
 

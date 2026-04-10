@@ -9,14 +9,15 @@ export async function getSubscription(userId: string): Promise<OrgSubscription |
     const res = await fetch(`/api/subscription?userId=${userId}`)
     if (!res.ok) {
       console.error('[subscription] API returned', res.status)
-      // Don't block on API errors
+      // Infrastructure error — don't block user
       return { subscription_status: 'exempt', plan: null, trial_ends_at: null }
     }
     const data = await res.json()
+    // API returned successfully — use the actual subscription (may be null)
     return data.subscription as OrgSubscription | null
   } catch (err) {
     console.error('[subscription] Fetch failed:', err)
-    // Don't block on network errors
+    // Network error — don't block user
     return { subscription_status: 'exempt', plan: null, trial_ends_at: null }
   }
 }
