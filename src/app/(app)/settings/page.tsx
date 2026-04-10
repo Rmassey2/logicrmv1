@@ -229,19 +229,23 @@ export default function SettingsPage() {
   async function saveCompany() {
     setSavingCompany(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) { setSavingCompany(false); return }
 
-    for (const key of COMPANY_KEYS) {
-      const value = company[key]?.trim() ?? ''
-      await supabase
-        .from('user_settings')
-        .upsert(
-          { user_id: user.id, key, value },
-          { onConflict: 'user_id,key' }
-        )
+    const settings = COMPANY_KEYS.map(key => ({ key, value: company[key]?.trim() ?? '' }))
+
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: user.id, settings }),
+    })
+    const data = await res.json()
+
+    if (!res.ok) {
+      console.error('[settings] Save failed:', data.error)
+      toast.error('Failed to save: ' + (data.error || 'Unknown error'))
+    } else {
+      toast.success('Company info saved.')
     }
-
-    toast.success('Company info saved.')
     setSavingCompany(false)
   }
 
