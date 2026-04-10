@@ -120,7 +120,7 @@ export default function AiSequencePage() {
   const [toneOverrideIdx, setToneOverrideIdx] = useState<number | null>(null)
 
   // ── Load signature profile data on mount ────────────────────────────────
-  const [sigProfile, setSigProfile] = useState<{ name: string; company: string; website: string; email: string }>({ name: '', company: '', website: '', email: '' })
+  const [sigProfile, setSigProfile] = useState<{ name: string; company: string; phone: string; email: string; website: string }>({ name: '', company: '', phone: '', email: '', website: '' })
 
   useEffect(() => {
     async function loadSig() {
@@ -130,25 +130,24 @@ export default function AiSequencePage() {
         .from('user_settings')
         .select('key, value')
         .eq('user_id', user.id)
-        .in('key', ['company_name', 'company_website'])
+        .in('key', ['company_name', 'company_phone', 'company_website'])
       const m = new Map((s ?? []).map(r => [r.key, r.value]))
       setSigProfile({
         name: user.user_metadata?.display_name || '',
         company: m.get('company_name') || '',
-        website: m.get('company_website') || '',
+        phone: m.get('company_phone') || '',
         email: user.email || '',
+        website: m.get('company_website') || '',
       })
     }
     loadSig()
   }, [])
 
-  // Rebuild signature whenever profile data or sender fields change
+  // Rebuild signature: Name, Company, Phone, Email, Website
   useEffect(() => {
     const name = sigProfile.name || senderName
     const company = sigProfile.company || senderCompany
-    const website = sigProfile.website || ''
-    const email = sigProfile.email || ''
-    const lines = [name, company, website, email].filter(Boolean)
+    const lines = [name, company, sigProfile.phone, sigProfile.email, sigProfile.website].filter(Boolean)
     setSignaturePreview(lines.join('\n'))
   }, [sigProfile, senderName, senderCompany])
 
@@ -290,12 +289,13 @@ export default function AiSequencePage() {
       .from('user_settings')
       .select('key, value')
       .eq('user_id', user.id)
-      .in('key', ['company_name', 'company_website'])
+      .in('key', ['company_name', 'company_phone', 'company_website'])
     const settingsMap = new Map((settingsData ?? []).map(s => [s.key, s.value]))
     const sigCompany = settingsMap.get('company_name') || senderCompany
-    const sigWebsite = settingsMap.get('company_website') || ''
+    const sigPhone = settingsMap.get('company_phone') || ''
     const sigEmail = user.email || ''
-    const sigLines = [sigName, sigCompany, sigWebsite, sigEmail].filter(Boolean)
+    const sigWebsite = settingsMap.get('company_website') || ''
+    const sigLines = [sigName, sigCompany, sigPhone, sigEmail, sigWebsite].filter(Boolean)
     const signature = '\n\n' + sigLines.join('\n')
 
     // Combine all touches into the campaign body with clear separators
