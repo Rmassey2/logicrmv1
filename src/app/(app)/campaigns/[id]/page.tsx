@@ -62,6 +62,7 @@ const CAMPAIGN_STATUS_CONFIG: Record<string, { label: string; cls: string; icon:
 }
 
 const CONTACT_STATUS_STYLES: Record<string, string> = {
+  active:        'bg-white/5 text-blue-300/50',
   enrolled:      'bg-white/5 text-blue-300/50',
   sent:          'bg-blue-500/10 text-blue-400',
   opened:        'bg-yellow-500/10 text-yellow-400',

@@ -153,17 +153,47 @@ export async function pauseCampaign(campaignId: string) {
 }
 
 // ─── Get campaign analytics ──────────────────────────────────────────────────
+// Instantly v2: GET /campaigns/analytics?id={campaign_id}
 
 interface CampaignAnalytics {
   total_leads?: number
-  emails_sent?: number
-  opens?: number
-  replies?: number
-  bounces?: number
+  leads_contacted?: number
+  sent?: number
+  open?: number
+  unique_open?: number
+  reply?: number
+  unique_reply?: number
+  bounce?: number
+  click?: number
+  unique_click?: number
 }
 
 export async function getCampaignAnalytics(campaignId: string) {
-  return request<CampaignAnalytics>(
-    `/analytics/campaign/summary?campaign_id=${campaignId}`
+  return request<CampaignAnalytics[]>(
+    `/campaigns/analytics?id=${campaignId}`
   )
+}
+
+// ─── Get leads for a campaign ────────────────────────────────────────────────
+// Instantly v2: POST /leads/list (non-standard POST for listing)
+
+export interface InstantlyLeadStatus {
+  email: string
+  first_name?: string
+  last_name?: string
+  company_name?: string
+  lead_status?: string
+  email_open_count?: number
+  email_reply_count?: number
+  email_click_count?: number
+}
+
+export async function getCampaignLeads(campaignId: string) {
+  return request<{ items: InstantlyLeadStatus[] }>('/leads/list', {
+    method: 'POST',
+    body: JSON.stringify({
+      campaign_id: campaignId,
+      limit: 100,
+    }),
+  })
 }
