@@ -243,7 +243,7 @@ export async function POST(req: NextRequest) {
               variants: [
                 {
                   subject: s.subject,
-                  body: s.body + signature,
+                  body: s.body.includes(sigName) ? s.body : s.body + signature,
                 },
               ],
             })),

@@ -136,22 +136,22 @@ export async function addLeadsToCampaign(
 }
 
 // ─── Launch (activate) a campaign ────────────────────────────────────────────
-// Instantly v2: PATCH /campaigns/:id with status=1 (Active)
+// Instantly v2: POST /campaigns/:id/activate
 
 export async function launchCampaign(campaignId: string) {
-  return request(`/campaigns/${campaignId}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status: 1 }),
+  return request(`/campaigns/${campaignId}/activate`, {
+    method: 'POST',
+    body: JSON.stringify({}),
   })
 }
 
 // ─── Pause a campaign ────────────────────────────────────────────────────────
-// Instantly v2: PATCH /campaigns/:id with status=2 (Paused)
+// Instantly v2: POST /campaigns/:id/pause (same pattern as activate)
 
 export async function pauseCampaign(campaignId: string) {
-  return request(`/campaigns/${campaignId}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status: 2 }),
+  return request(`/campaigns/${campaignId}/pause`, {
+    method: 'POST',
+    body: JSON.stringify({}),
   })
 }
 
