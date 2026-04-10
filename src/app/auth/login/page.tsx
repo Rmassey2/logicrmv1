@@ -16,6 +16,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [promoCode, setPromoCode] = useState('')
+  const [showPromo, setShowPromo] = useState(false)
 
   const handleSubmit = async () => {
     setLoading(true)
@@ -40,15 +42,17 @@ export default function LoginPage() {
           .maybeSingle()
 
         if (!membership) {
-          // No invite — create a new org and make them admin with 14-day trial
+          // No invite — create a new org and make them admin
+          const validCodes = ['MACOTEST', 'LOGICRMBETA']
+          const isPromoValid = validCodes.includes(promoCode.trim().toUpperCase())
           const trialEndsAt = new Date(Date.now() + 14 * 86400000).toISOString()
           const { data: org } = await supabase
             .from('organizations')
             .insert({
               name: `${email.split('@')[0]}'s Organization`,
               owner_id: newUser.id,
-              subscription_status: 'trial',
-              trial_ends_at: trialEndsAt,
+              subscription_status: isPromoValid ? 'exempt' : 'trial',
+              trial_ends_at: isPromoValid ? null : trialEndsAt,
             })
             .select('id')
             .single()
@@ -101,6 +105,30 @@ export default function LoginPage() {
                 onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
                 className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500" />
             </div>
+            {mode === 'signup' && (
+              <div>
+                {!showPromo ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowPromo(true)}
+                    className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    Have a promo code?
+                  </button>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Promo Code</label>
+                    <input
+                      type="text"
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value)}
+                      placeholder="Enter code"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
             <button onClick={handleSubmit} disabled={loading}
               className="w-full py-3 rounded-lg font-bold text-white text-sm"
               style={{ backgroundColor: '#d4930e' }}>
