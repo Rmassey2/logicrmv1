@@ -97,8 +97,8 @@ export default function AiSequencePage() {
   const [contactTitle, setContactTitle] = useState('')
   const [painPoint, setPainPoint] = useState('')
   const [companyName, setCompanyName] = useState('')
-  const [senderName, setSenderName] = useState('Jarrett Bailey')
-  const [senderCompany, setSenderCompany] = useState('Maco Logistics')
+  const [senderName, setSenderName] = useState('')
+  const [senderCompany, setSenderCompany] = useState('')
   const [tone, setTone] = useState<string>(TONES[0])
   const [customTone, setCustomTone] = useState('')
 
@@ -126,12 +126,16 @@ export default function AiSequencePage() {
     async function loadSig() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+      // Set sender fields from user profile
+      const displayName = user.user_metadata?.display_name || ''
+      if (displayName) setSenderName(displayName)
       // Load company info from organizations via API
       const res = await fetch(`/api/settings?userId=${user.id}`)
       const data = await res.json()
       const c = data.company || {}
+      if (c.company_name) setSenderCompany(c.company_name)
       setSigProfile({
-        name: user.user_metadata?.display_name || '',
+        name: displayName,
         company: c.company_name || '',
         phone: c.company_phone || '',
         email: user.email || '',
