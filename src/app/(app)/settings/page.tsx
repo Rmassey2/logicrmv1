@@ -161,6 +161,11 @@ export default function SettingsPage() {
   const [gmailEmail, setGmailEmail] = useState('')
   const [gmailSyncing, setGmailSyncing] = useState(false)
 
+  // Outlook
+  const [outlookConnected, setOutlookConnected] = useState(false)
+  const [outlookEmail, setOutlookEmail] = useState('')
+  const [outlookSyncing, setOutlookSyncing] = useState(false)
+
   // Team
   const [orgName, setOrgName] = useState('')
   const [orgId, setOrgId] = useState<string | null>(null)
@@ -216,6 +221,30 @@ export default function SettingsPage() {
     if (gmailSetting?.value) {
       setGmailConnected(true)
       setGmailEmail(gmailSetting.value)
+    }
+
+    // Outlook connection check
+    const { data: outlookConn } = await supabase
+      .from('outlook_connections')
+      .select('email')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (outlookConn?.email) {
+      setOutlookConnected(true)
+      setOutlookEmail(outlookConn.email)
+    }
+
+    // Check URL params for Outlook connect result
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('outlook') === 'connected') {
+        toast.success('Outlook connected successfully!')
+      } else if (params.get('outlook') === 'error') {
+        toast.error('Failed to connect Outlook')
+      }
+      if (params.get('tab')) {
+        setActiveTab(params.get('tab') || 'getting-started')
+      }
     }
 
     // Organization & team
@@ -410,6 +439,36 @@ export default function SettingsPage() {
     setGmailSyncing(false)
   }
 
+  async function handleOutlookSync() {
+    setOutlookSyncing(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setOutlookSyncing(false); return }
+    try {
+      const res = await fetch('/api/outlook/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Sync failed') }
+      else { toast.success(`${data.synced} emails synced as activities`) }
+    } catch { toast.error('Outlook sync failed') }
+    setOutlookSyncing(false)
+  }
+
+  async function handleOutlookDisconnect() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await fetch('/api/outlook/disconnect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: user.id }),
+    })
+    setOutlookConnected(false)
+    setOutlookEmail('')
+    toast.success('Outlook disconnected')
+  }
+
   // ── Pipeline Stages ──────────────────────────────────────────────────────
 
   function updateStage(idx: number, name: string) {
@@ -535,6 +594,7 @@ export default function SettingsPage() {
       <div className="flex gap-1 mb-6 border-b border-white/10 pb-px">
         {[
           { id: 'getting-started', label: 'Getting Started' },
+          { id: 'email', label: 'Email' },
           { id: 'settings', label: 'Settings' },
         ].map(tab => (
           <button
@@ -552,6 +612,84 @@ export default function SettingsPage() {
 
       {/* Getting Started Tab */}
       {activeTab === 'getting-started' && <GettingStarted checklist={checklist} userPlan={userPlan} instantlyKey={instantlyKey} setInstantlyKey={setInstantlyKey} savingKey={savingKey} saveInstantlyKey={saveInstantlyKey} setActiveTab={setActiveTab} router={router} />}
+
+      {/* Email Tab */}
+      {activeTab === 'email' && (
+      <div className="space-y-6">
+        {/* Email Sync */}
+        <SectionCard title="Email Sync">
+          <p className="text-sm text-blue-300/60 mb-5">Connect your email to automatically log sent and received messages to your contacts.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Gmail */}
+            <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5">
+              <p className="text-sm font-semibold text-white mb-3">Gmail</p>
+              {gmailConnected ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    <p className="text-xs text-blue-200">Connected as <span style={{ color: '#d4930e' }}>{gmailEmail}</span></p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={handleGmailSync} disabled={gmailSyncing} className="px-3 py-1.5 rounded-lg text-xs font-semibold hover:brightness-110 disabled:opacity-60 transition-colors" style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}>
+                      {gmailSyncing ? 'Syncing...' : 'Sync Now'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <a href="/api/gmail/connect" className="inline-block px-4 py-2 rounded-lg text-xs font-semibold hover:brightness-110 transition-colors" style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}>
+                  Connect Gmail
+                </a>
+              )}
+            </div>
+
+            {/* Outlook */}
+            <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5">
+              <p className="text-sm font-semibold text-white mb-3">Outlook</p>
+              {outlookConnected ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    <p className="text-xs text-blue-200">Connected as <span style={{ color: '#d4930e' }}>{outlookEmail}</span></p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={handleOutlookSync} disabled={outlookSyncing} className="px-3 py-1.5 rounded-lg text-xs font-semibold hover:brightness-110 disabled:opacity-60 transition-colors" style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}>
+                      {outlookSyncing ? 'Syncing...' : 'Sync Now'}
+                    </button>
+                    <button onClick={handleOutlookDisconnect} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-400 border border-red-400/20 hover:bg-red-500/10 transition-colors">
+                      Disconnect
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <a href="/api/outlook/connect" className="inline-block px-4 py-2 rounded-lg text-xs font-semibold hover:brightness-110 transition-colors" style={{ backgroundColor: '#0078d4', color: '#fff' }}>
+                  Connect Outlook
+                </a>
+              )}
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* Email Signature */}
+        <SectionCard title="Email Signature">
+          <div className="space-y-4">
+            <div className="rounded-lg p-4 text-sm leading-relaxed" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <p className="text-white font-medium">{displayName || 'Your Name'}</p>
+              <p className="text-blue-300/60">{company.company_name || 'Your Company'}</p>
+              {company.company_phone && <p className="text-blue-300/50 text-xs">{company.company_phone}</p>}
+              <p className="text-blue-300/40 text-xs">{userEmail || 'you@company.com'}</p>
+              {company.company_website && <p className="text-blue-300/40 text-xs">{company.company_website}</p>}
+            </div>
+            <p className="text-[10px] text-blue-300/30">Edit your name in the Profile tab and company info in Settings to update this signature.</p>
+          </div>
+        </SectionCard>
+
+        {/* Sending Address */}
+        <SectionCard title="Sending Address">
+          <p className="text-sm text-blue-200">Emails sent from LogiCRM use: <span className="font-medium" style={{ color: '#d4930e' }}>jarrett@macoships.com</span> via Resend</p>
+          <p className="text-xs text-blue-300/40 mt-2">To change your sending address, contact support.</p>
+        </SectionCard>
+      </div>
+      )}
 
       {/* Settings Tab */}
       {activeTab === 'settings' && (
