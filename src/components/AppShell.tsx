@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import Sidebar from '@/components/Sidebar'
+import TrainingChat from '@/components/TrainingChat'
 import { getSubscription, isExpired, trialDaysLeft, type OrgSubscription } from '@/lib/subscription'
 
 const supabase = createClient(
@@ -88,6 +89,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         )}
         {children}
       </main>
+      <TrainingChat />
     </div>
   )
 }
