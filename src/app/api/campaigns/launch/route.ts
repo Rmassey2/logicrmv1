@@ -169,13 +169,20 @@ export async function POST(req: NextRequest) {
     console.log('[launch] Step 4b - Sequences from DB:', { count: sequences?.length, error: seqError?.message })
 
     // Build steps array from email_sequences or fallback to parsing campaign.body
+    // Hardcoded delay schedule: days between each touch
+    const DELAY_SCHEDULE = [0, 2, 2, 3, 4, 4, 5] // Touch 1=0, 2=2d, 3=2d, 4=3d, 5=4d, 6=4d, 7=5d
     interface SeqStep { subject: string; body: string; delay: number }
     const steps: SeqStep[] = []
 
     if (sequences && sequences.length > 0) {
       for (let i = 0; i < sequences.length; i++) {
         const seq = sequences[i]
-        const delay = i === 0 ? 0 : Math.max((seq.day_number ?? 0) - (sequences[i - 1]?.day_number ?? 0), 0)
+        // Use day_number diff if available, otherwise use hardcoded schedule
+        let delay = DELAY_SCHEDULE[i] ?? 3
+        if (i > 0 && seq.day_number && sequences[i - 1]?.day_number) {
+          delay = Math.max(seq.day_number - sequences[i - 1].day_number, 1)
+        }
+        if (i === 0) delay = 0
         steps.push({
           subject: seq.subject || `Touch ${seq.touch_number}`,
           body: seq.body || '',
@@ -184,7 +191,6 @@ export async function POST(req: NextRequest) {
       }
     } else if (campaign.body) {
       const touches = campaign.body.split(/---\s*Touch\s+/).filter(Boolean)
-      const daySchedule = [1, 3, 5, 8, 12, 16, 21]
       let idx = 0
       for (const block of touches) {
         const headerMatch = block.match(/^(\d+)\s*\(Day\s*(\d+)\):\s*(.+?)\s*---\s*\n/)
@@ -193,7 +199,7 @@ export async function POST(req: NextRequest) {
         const subjectMatch = rest.match(/^Subject:\s*(.+)\n\n/)
         const subject = subjectMatch ? subjectMatch[1].trim() : `Touch ${headerMatch[1]}`
         const bodyText = subjectMatch ? rest.slice(subjectMatch[0].length).trim() : rest.trim()
-        const delay = idx === 0 ? 0 : Math.max((daySchedule[idx] ?? 3) - (daySchedule[idx - 1] ?? 0), 0)
+        const delay = DELAY_SCHEDULE[idx] ?? 3
         steps.push({ subject, body: bodyText, delay })
         idx++
       }
