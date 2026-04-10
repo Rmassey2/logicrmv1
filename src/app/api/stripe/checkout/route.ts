@@ -22,15 +22,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Stripe price ID not configured for "${plan}" plan. Set STRIPE_PRICE_${plan.toUpperCase()} in env vars.` }, { status: 500 })
     }
 
-    const { data: membership } = await supabase
+    let { data: membership } = await supabase
       .from('organization_members')
       .select('org_id')
       .eq('user_id', user_id)
       .limit(1)
       .maybeSingle()
 
+    // If no org exists, create one on the fly
     if (!membership) {
-      return NextResponse.json({ error: 'No organization found' }, { status: 400 })
+      const { data: authUser } = await supabase.auth.admin.getUserById(user_id)
+      const userEmail = authUser?.user?.email || 'user'
+      const { data: newOrg } = await supabase
+        .from('organizations')
+        .insert({
+          name: `${userEmail.split('@')[0]}'s Organization`,
+          owner_id: user_id,
+          subscription_status: 'trial',
+          trial_ends_at: new Date(Date.now() + 14 * 86400000).toISOString(),
+        })
+        .select('id')
+        .single()
+
+      if (!newOrg) {
+        return NextResponse.json({ error: 'Failed to create organization' }, { status: 500 })
+      }
+
+      await supabase.from('organization_members').insert({
+        org_id: newOrg.id,
+        user_id,
+        role: 'admin',
+      })
+
+      membership = { org_id: newOrg.id }
     }
 
     const { data: org } = await supabase

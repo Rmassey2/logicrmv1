@@ -33,38 +33,16 @@ export default function LoginPage() {
 
       const newUser = signUpData.user
       if (newUser) {
-        // Check if user was invited to an org (has pending membership)
-        const { data: membership } = await supabase
-          .from('organization_members')
-          .select('id')
-          .eq('user_id', newUser.id)
-          .limit(1)
-          .maybeSingle()
-
-        if (!membership) {
-          // No invite — create a new org and make them admin
-          const validCodes = ['MACOTEST', 'LOGICRMBETA']
-          const isPromoValid = validCodes.includes(promoCode.trim().toUpperCase())
-          const trialEndsAt = new Date(Date.now() + 14 * 86400000).toISOString()
-          const { data: org } = await supabase
-            .from('organizations')
-            .insert({
-              name: `${email.split('@')[0]}'s Organization`,
-              owner_id: newUser.id,
-              subscription_status: isPromoValid ? 'exempt' : 'trial',
-              trial_ends_at: isPromoValid ? null : trialEndsAt,
-            })
-            .select('id')
-            .single()
-
-          if (org) {
-            await supabase.from('organization_members').insert({
-              org_id: org.id,
-              user_id: newUser.id,
-              role: 'admin',
-            })
-          }
-        }
+        // Create org via API route (uses service role key to bypass RLS)
+        await fetch('/api/auth/setup-org', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: newUser.id,
+            email,
+            promo_code: promoCode,
+          }),
+        })
       }
     }
 
