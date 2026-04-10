@@ -54,6 +54,7 @@ export async function createCampaign(
       name,
       subject,
       body,
+      email_list: ['jarrett@macoships.com'],
       campaign_schedule: {
         schedules: [
           {
