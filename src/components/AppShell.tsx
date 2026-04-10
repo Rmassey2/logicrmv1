@@ -24,6 +24,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         return
       }
 
+      // Hardcoded exempt emails — always bypass paywall
+      const exemptEmails = ['rmassey@macotransport.com', 'jarrett@macoships.com']
+      if (exemptEmails.includes(user.email ?? '')) {
+        setSub({ subscription_status: 'exempt', plan: 'team', trial_ends_at: null })
+        setReady(true)
+        return
+      }
+
       const subscription = await getSubscription(user.id)
       setSub(subscription)
 
