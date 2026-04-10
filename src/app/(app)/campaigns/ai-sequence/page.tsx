@@ -31,6 +31,15 @@ interface TouchEmail {
   body: string
 }
 
+// Title case: capitalize first letter of each word, skip small words unless first
+const SMALL_WORDS = new Set(['a', 'an', 'the', 'and', 'but', 'or', 'for', 'nor', 'on', 'at', 'to', 'in', 'of', 'is'])
+function titleCase(str: string): string {
+  return str.replace(/\w\S*/g, (word, index) => {
+    if (index > 0 && SMALL_WORDS.has(word.toLowerCase())) return word.toLowerCase()
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+  })
+}
+
 const SEGMENTS = [
   'All Shippers (general)',
   'Manufacturers & Producers',
@@ -152,7 +161,12 @@ export default function AiSequencePage() {
         console.error('AI sequence error:', data)
         toast.error(data.error ?? 'Failed to generate sequence')
       } else {
-        setSequence(data.sequence)
+        // Apply title case to subject lines
+        const seq = (data.sequence as TouchEmail[]).map(t => ({
+          ...t,
+          subject: titleCase(t.subject),
+        }))
+        setSequence(seq)
         setGeneratedTone(effectiveTone)
         toast.success('Sequence generated!')
       }
@@ -202,7 +216,7 @@ export default function AiSequencePage() {
       if (!res.ok) {
         toast.error(data.error ?? 'Failed to rewrite')
       } else {
-        updateTouch(idx, 'subject', data.email.subject)
+        updateTouch(idx, 'subject', titleCase(data.email.subject))
         updateTouch(idx, 'body', data.email.body)
         setModifiedSet(prev => new Set(prev).add(idx))
         setRewriteIdx(null)
