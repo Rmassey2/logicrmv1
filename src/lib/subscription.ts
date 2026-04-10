@@ -7,11 +7,17 @@ export interface OrgSubscription {
 export async function getSubscription(userId: string): Promise<OrgSubscription | null> {
   try {
     const res = await fetch(`/api/subscription?userId=${userId}`)
+    if (!res.ok) {
+      console.error('[subscription] API returned', res.status)
+      // Don't block on API errors
+      return { subscription_status: 'exempt', plan: null, trial_ends_at: null }
+    }
     const data = await res.json()
     return data.subscription as OrgSubscription | null
   } catch (err) {
     console.error('[subscription] Fetch failed:', err)
-    return null
+    // Don't block on network errors
+    return { subscription_status: 'exempt', plan: null, trial_ends_at: null }
   }
 }
 

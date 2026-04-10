@@ -14,8 +14,12 @@ export async function POST(req: NextRequest) {
 
     const { plan, user_id } = await req.json()
 
-    if (!plan || !PRICE_IDS[plan]) {
+    if (!plan || !(plan in PRICE_IDS)) {
       return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
+    }
+
+    if (!PRICE_IDS[plan]) {
+      return NextResponse.json({ error: `Stripe price ID not configured for "${plan}" plan. Set STRIPE_PRICE_${plan.toUpperCase()} in env vars.` }, { status: 500 })
     }
 
     const { data: membership } = await supabase
