@@ -14,7 +14,8 @@ export async function POST(req: NextRequest) {
     // 1. Read campaign_id from request body
     const body = await req.json()
     const { campaign_id, action } = body
-    console.log('[launch] Step 1 - Request body:', { campaign_id, action })
+    const effectiveAction = action || 'launch'
+    console.log('[launch] Step 1 - Request:', { campaign_id, action: effectiveAction })
 
     if (!campaign_id) {
       return NextResponse.json({ error: 'campaign_id required' }, { status: 400 })
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Handle pause action
-    if (action === 'pause') {
+    if (effectiveAction === 'pause') {
       if (!campaign.instantly_campaign_id) {
         return NextResponse.json({ error: 'Campaign not linked to Instantly' }, { status: 400 })
       }
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Handle resume action
-    if (action === 'resume') {
+    if (effectiveAction === 'resume') {
       if (!campaign.instantly_campaign_id) {
         return NextResponse.json({ error: 'Campaign not linked to Instantly' }, { status: 400 })
       }
@@ -80,6 +81,9 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({ success: true, status: 'active' })
     }
+
+    // ── New campaign launch flow ──────────────────────────────────────────
+    console.log('[launch] Starting new campaign launch for:', campaign.name)
 
     // 3. Query campaign_contacts joined with contacts
     const { data: enrollments, error: enrollError } = await supabase
