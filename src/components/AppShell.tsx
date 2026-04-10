@@ -26,13 +26,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       // Hardcoded exempt emails — always bypass paywall
       const exemptEmails = ['rmassey@macotransport.com', 'jarrett@macoships.com']
-      if (exemptEmails.includes(user.email ?? '')) {
+      const userEmail = (user.email ?? '').toLowerCase()
+      console.log('[AppShell] User email:', userEmail, 'exempt:', exemptEmails.includes(userEmail))
+      if (exemptEmails.includes(userEmail)) {
         setSub({ subscription_status: 'exempt', plan: 'team', trial_ends_at: null })
         setReady(true)
         return
       }
 
       const subscription = await getSubscription(user.id)
+      console.log('[AppShell] Subscription:', subscription)
       setSub(subscription)
 
       // Paywall: redirect to pricing if expired (but allow /pricing itself)
@@ -61,7 +64,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     )
   }
 
-  const showTrialBanner = sub?.subscription_status === 'trial' && sub?.trial_ends_at
+  const showTrialBanner = sub?.subscription_status === 'trial' && !!sub?.trial_ends_at && !isExpired(sub)
   const daysLeft = trialDaysLeft(sub)
 
   return (
