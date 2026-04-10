@@ -22,6 +22,7 @@ import {
   Plus,
   Search,
   X,
+  Save,
 } from 'lucide-react'
 
 const supabase = createClient(
@@ -589,7 +590,7 @@ export default function CampaignDetailPage() {
       {sequences.length > 0 && (
         <div className="space-y-3 mb-6">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-blue-300">Email Sequence ({sequences.length} touches)</h3>
-          {sequences.map(s => (
+          {sequences.map((s, idx) => (
             <div key={s.touch} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
               <div className="px-5 py-3 border-b border-white/10 flex items-center gap-3">
                 <span
@@ -598,19 +599,44 @@ export default function CampaignDetailPage() {
                 >
                   {s.touch}
                 </span>
-                <div>
+                <div className="flex-1">
                   <p className="text-xs font-medium text-white">Touch {s.touch}</p>
                   <p className="text-[10px] text-blue-300/40">Day {s.day}{s.label ? ` · ${s.label}` : ''}</p>
                 </div>
+                <button
+                  onClick={async () => {
+                    const { error } = await supabase
+                      .from('email_sequences')
+                      .update({ subject: s.subject, body: s.body })
+                      .eq('campaign_id', id)
+                      .eq('touch_number', s.touch)
+                    if (error) toast.error('Save failed: ' + error.message)
+                    else toast.success(`Touch ${s.touch} saved`)
+                  }}
+                  className="p-1.5 rounded-lg text-blue-300/30 hover:text-white hover:bg-white/10 transition-colors"
+                  title="Save changes"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                </button>
               </div>
               <div className="p-5 space-y-2">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-300/40 mb-0.5">Subject</p>
-                  <p className="text-sm text-white">{s.subject}</p>
+                  <input
+                    type="text"
+                    value={s.subject}
+                    onChange={e => setSequences(prev => prev.map((sq, i) => i === idx ? { ...sq, subject: e.target.value } : sq))}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/50"
+                  />
                 </div>
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-300/40 mb-0.5">Body</p>
-                  <p className="text-xs text-blue-200/70 whitespace-pre-wrap leading-relaxed">{s.body}</p>
+                  <textarea
+                    rows={5}
+                    value={s.body}
+                    onChange={e => setSequences(prev => prev.map((sq, i) => i === idx ? { ...sq, body: e.target.value } : sq))}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-blue-200 font-mono leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-yellow-500/50"
+                  />
                 </div>
               </div>
             </div>

@@ -236,9 +236,22 @@ export default function AiSequencePage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth/login'); return }
 
+    // Build signature from profile
+    const sigName = user.user_metadata?.display_name || senderName
+    const { data: settingsData } = await supabase
+      .from('user_settings')
+      .select('key, value')
+      .eq('user_id', user.id)
+      .in('key', ['company_name', 'company_phone'])
+    const settingsMap = new Map((settingsData ?? []).map(s => [s.key, s.value]))
+    const sigCompany = settingsMap.get('company_name') || senderCompany
+    const sigPhone = settingsMap.get('company_phone') || ''
+    const sigEmail = user.email || ''
+    const signature = `\n\n${sigName}\n${sigCompany}${sigPhone || sigEmail ? '\n' + [sigPhone, sigEmail].filter(Boolean).join(' | ') : ''}`
+
     // Combine all touches into the campaign body with clear separators
     const combinedBody = sequence.map(t =>
-      `--- Touch ${t.touch} (Day ${t.day}): ${t.label} ---\nSubject: ${t.subject}\n\n${t.body}`
+      `--- Touch ${t.touch} (Day ${t.day}): ${t.label} ---\nSubject: ${t.subject}\n\n${t.body}${signature}`
     ).join('\n\n')
 
     const { error } = await supabase.from('email_campaigns').insert({
