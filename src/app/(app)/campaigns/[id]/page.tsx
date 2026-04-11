@@ -42,6 +42,10 @@ interface Campaign {
   open_count: number | null
   reply_count: number | null
   created_at: string
+  approval_status: string | null
+  approval_notes: string | null
+  submitted_at: string | null
+  user_id: string | null
 }
 
 interface EnrolledContact {
@@ -88,6 +92,9 @@ export default function CampaignDetailPage() {
   const [pausing, setPausing] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [sequences, setSequences] = useState<{ touch: number; day: number; label: string; subject: string; body: string }[]>([])
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [rejectNotes, setRejectNotes] = useState('')
 
   // Add contacts modal
   const [showAddModal, setShowAddModal] = useState(false)
@@ -115,6 +122,15 @@ export default function CampaignDetailPage() {
       return
     }
     setCampaign(camp as Campaign)
+
+    // Check if admin
+    const { data: membership } = await supabase
+      .from('organization_members')
+      .select('role')
+      .eq('user_id', user.id)
+      .limit(1)
+      .maybeSingle()
+    setIsAdmin(membership?.role === 'admin')
 
     const { data: rawEnrollments, error: enrollErr } = await supabase
       .from('campaign_contacts')
@@ -298,6 +314,33 @@ export default function CampaignDetailPage() {
         }
       },
     })
+  }
+
+  // ── Approval workflow ──────────────────────────────────────────────────────
+
+  async function handleSubmitForApproval() {
+    const { error } = await supabase
+      .from('email_campaigns')
+      .update({ approval_status: 'pending', submitted_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) { toast.error('Failed to submit'); return }
+    toast.success('Submitted for approval!')
+    loadData()
+  }
+
+  async function handleApproveAndLaunch() {
+    await supabase.from('email_campaigns').update({ approval_status: 'approved', approved_at: new Date().toISOString() }).eq('id', id)
+    toast.success('Approved! Launching...')
+    handleLaunch()
+  }
+
+  async function handleReject() {
+    if (!rejectNotes.trim()) { toast.error('Enter feedback'); return }
+    await supabase.from('email_campaigns').update({ approval_status: 'rejected', approval_notes: rejectNotes.trim() }).eq('id', id)
+    setShowRejectModal(false)
+    setRejectNotes('')
+    toast.success('Campaign rejected with feedback')
+    loadData()
   }
 
   // ── Add contacts modal ─────────────────────────────────────────────────────
@@ -524,6 +567,22 @@ export default function CampaignDetailPage() {
                 <StatusIcon className="w-3 h-3" />
                 {cfg.label}
               </span>
+              {/* Approval status badge */}
+              {campaign.approval_status && campaign.approval_status !== 'draft' && (
+                <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                  campaign.approval_status === 'pending' ? 'bg-yellow-500/10 text-yellow-400' :
+                  campaign.approval_status === 'approved' ? 'bg-emerald-500/10 text-emerald-400' :
+                  campaign.approval_status === 'rejected' ? 'bg-red-500/10 text-red-400' :
+                  campaign.approval_status === 'live' ? 'bg-yellow-500/10 text-yellow-400' :
+                  'bg-white/5 text-blue-300/50'
+                }`}>
+                  {campaign.approval_status === 'pending' ? 'Pending Approval' :
+                   campaign.approval_status === 'approved' ? 'Approved' :
+                   campaign.approval_status === 'rejected' ? 'Rejected' :
+                   campaign.approval_status === 'live' ? 'Live' :
+                   campaign.approval_status}
+                </span>
+              )}
               <span className="text-xs text-blue-300/40">Created {formatDate(campaign.created_at)}</span>
             </div>
           </div>
@@ -536,16 +595,32 @@ export default function CampaignDetailPage() {
             >
               <Plus className="w-4 h-4" /> Add Contacts
             </button>
-            {isDraft && (
-              <button
-                onClick={handleLaunch}
-                disabled={launching}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 disabled:opacity-60 transition-colors"
-                style={{ backgroundColor: '#d4930e' }}
-              >
-                <Rocket className="w-4 h-4" />
-                {launching ? 'Launching...' : 'Launch Campaign'}
+            {/* Rep: Submit for Approval / Admin: Launch directly */}
+            {isDraft && !isAdmin && (!campaign.approval_status || campaign.approval_status === 'draft') && (
+              <button onClick={handleSubmitForApproval} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 transition-colors" style={{ backgroundColor: '#d4930e' }}>
+                Submit for Approval
               </button>
+            )}
+            {isDraft && isAdmin && (
+              <button onClick={handleLaunch} disabled={launching} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 disabled:opacity-60 transition-colors" style={{ backgroundColor: '#d4930e' }}>
+                <Rocket className="w-4 h-4" /> {launching ? 'Launching...' : 'Launch Campaign'}
+              </button>
+            )}
+            {campaign.approval_status === 'approved' && (
+              <button onClick={handleLaunch} disabled={launching} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 disabled:opacity-60 transition-colors" style={{ backgroundColor: '#22c55e' }}>
+                <Rocket className="w-4 h-4" /> {launching ? 'Launching...' : 'Launch Now'}
+              </button>
+            )}
+            {/* Admin approval controls for pending campaigns */}
+            {isAdmin && campaign.approval_status === 'pending' && (
+              <>
+                <button onClick={handleApproveAndLaunch} disabled={launching} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm text-white hover:brightness-110 disabled:opacity-60 transition-colors" style={{ backgroundColor: '#22c55e' }}>
+                  {launching ? 'Launching...' : 'Approve & Launch'}
+                </button>
+                <button onClick={() => setShowRejectModal(true)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-colors">
+                  Reject
+                </button>
+              </>
             )}
             {(isActive || isPaused) && (
               <button
@@ -572,6 +647,14 @@ export default function CampaignDetailPage() {
 
         {/* Subject line */}
         <div className="mt-5 pt-5 border-t border-white/10">
+          {/* Rejection feedback */}
+          {campaign.approval_status === 'rejected' && campaign.approval_notes && (
+            <div className="mb-4 p-3 rounded-lg border border-red-500/30 bg-red-500/5">
+              <p className="text-xs font-semibold text-red-400 mb-1">Manager Feedback</p>
+              <p className="text-sm text-red-300/80">{campaign.approval_notes}</p>
+            </div>
+          )}
+
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50 mb-1">Subject Line</p>
           <p className="text-sm text-white">{campaign.subject}</p>
         </div>
@@ -835,6 +918,28 @@ export default function CampaignDetailPage() {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowRejectModal(false)}>
+          <div className="rounded-2xl p-6 w-full max-w-md" style={{ background: '#0f1c35', border: '1px solid rgba(255,255,255,0.1)' }} onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-white mb-2">Reject Campaign</h3>
+            <p className="text-sm text-blue-300/60 mb-4">Provide feedback for the rep so they can improve the campaign.</p>
+            <textarea
+              value={rejectNotes}
+              onChange={e => setRejectNotes(e.target.value)}
+              placeholder="What needs to change? Be specific..."
+              rows={4}
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white placeholder-blue-300/40 focus:outline-none focus:ring-2 focus:ring-red-500/50 mb-4 resize-none"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button onClick={handleReject} className="flex-1 py-2.5 rounded-lg font-semibold text-sm text-white bg-red-500 hover:bg-red-600 transition-colors">Reject with Feedback</button>
+              <button onClick={() => setShowRejectModal(false)} className="px-4 py-2.5 rounded-lg text-sm text-blue-300 border border-white/10 hover:text-white transition-colors">Cancel</button>
             </div>
           </div>
         </div>

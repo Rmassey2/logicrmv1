@@ -16,6 +16,7 @@ interface Campaign {
   id: string
   name: string
   status: string | null
+  approval_status: string | null
   recipient_count: number | null
   sent_count: number | null
   open_count: number | null
@@ -42,7 +43,7 @@ export default function CampaignsPage() {
 
       const { data } = await supabase
         .from('email_campaigns')
-        .select('id, name, status, recipient_count, sent_count, open_count, reply_count, created_at')
+        .select('id, name, status, approval_status, recipient_count, sent_count, open_count, reply_count, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
@@ -143,6 +144,16 @@ export default function CampaignsPage() {
                       <StatusIcon className="w-3 h-3" />
                       {cfg.label}
                     </span>
+                    {c.approval_status && c.approval_status !== 'draft' && (
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                        c.approval_status === 'pending' ? 'bg-yellow-500/10 text-yellow-400' :
+                        c.approval_status === 'approved' ? 'bg-emerald-500/10 text-emerald-400' :
+                        c.approval_status === 'rejected' ? 'bg-red-500/10 text-red-400' :
+                        'bg-white/5 text-blue-300/40'
+                      }`}>
+                        {c.approval_status}
+                      </span>
+                    )}
                     <span className="text-blue-300/40 text-xs">{formatDate(c.created_at)}</span>
                   </div>
                 </div>

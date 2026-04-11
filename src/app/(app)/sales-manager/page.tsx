@@ -53,6 +53,7 @@ export default function SalesManagerPage() {
   const [panelActivities, setPanelActivities] = useState<{ id: string; type: string; subject: string; contactName: string; createdAt: string }[]>([])
   const [panelCampaigns, setPanelCampaigns] = useState<{ id: string; name: string; status: string; enrolled: number }[]>([])
   const [panelSearch, setPanelSearch] = useState('')
+  const [pendingCampaigns, setPendingCampaigns] = useState<{ id: string; name: string; rep: string; submitted_at: string }[]>([])
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -70,6 +71,22 @@ export default function SalesManagerPage() {
     if (data.recentActivities) setRecent(data.recentActivities)
     if (data.totals) setTotals(data.totals)
     setCurrentUserId(user.id)
+
+    // Fetch pending campaigns
+    const { data: pendingCamps } = await supabase
+      .from('email_campaigns')
+      .select('id, name, user_id, submitted_at')
+      .eq('approval_status', 'pending')
+    if (pendingCamps && data.reps) {
+      const repMap = new Map((data.reps as Rep[]).map((r: Rep) => [r.userId, r.name]))
+      setPendingCampaigns(pendingCamps.map(c => ({
+        id: c.id,
+        name: c.name,
+        rep: repMap.get(c.user_id) || 'Unknown',
+        submitted_at: c.submitted_at || c.id,
+      })))
+    }
+
     setLoading(false)
 
     // Load AI briefing in background
@@ -144,6 +161,24 @@ export default function SalesManagerPage() {
           </div>
         ))}
       </div>
+
+      {/* ── Pending Approvals ── */}
+      {pendingCampaigns.length > 0 && (
+        <div className="rounded-2xl p-5 mb-6 border" style={{ backgroundColor: 'rgba(212,147,14,0.05)', borderColor: 'rgba(212,147,14,0.3)' }}>
+          <h3 className="text-sm font-semibold mb-3" style={{ color: '#d4930e' }}>{pendingCampaigns.length} campaign{pendingCampaigns.length !== 1 ? 's' : ''} pending your approval</h3>
+          <div className="space-y-2">
+            {pendingCampaigns.map(c => (
+              <div key={c.id} className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div>
+                  <p className="text-sm font-medium text-white">{c.name}</p>
+                  <p className="text-[10px] text-blue-300/40">{c.rep} · Submitted {c.submitted_at ? new Date(c.submitted_at).toLocaleDateString() : ''}</p>
+                </div>
+                <Link href={`/campaigns/${c.id}`} className="px-3 py-1.5 rounded-lg text-xs font-semibold hover:brightness-110 transition-colors" style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}>Review</Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── AI Briefing ── */}
       <div className="rounded-2xl p-5 mb-6" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(212,147,14,0.2)' }}>
