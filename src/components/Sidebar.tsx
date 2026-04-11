@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
-import { LayoutDashboard, Bot, Users, Building2, TrendingUp, Mail, Sparkles, CheckSquare, ClipboardList, Settings, UsersRound, LogOut } from 'lucide-react'
+import { LayoutDashboard, Bot, Users, Building2, TrendingUp, Mail, Sparkles, CheckSquare, ClipboardList, Settings, UsersRound, LogOut, BarChart3 } from 'lucide-react'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,6 +22,7 @@ const baseNavItems = [
   { label: 'Activities', href: '/activities', icon: ClipboardList },
 ]
 
+const salesManagerNavItem = { label: 'Sales Manager', href: '/sales-manager', icon: BarChart3 }
 const adminNavItem = { label: 'Team', href: '/admin', icon: UsersRound }
 const settingsNavItem = { label: 'Settings', href: '/settings', icon: Settings }
 
@@ -66,7 +67,7 @@ export default function Sidebar() {
 
   const navItems = [
     ...baseNavItems,
-    ...(isAdmin ? [adminNavItem] : []),
+    ...(isAdmin ? [salesManagerNavItem, adminNavItem] : []),
     settingsNavItem,
   ]
 
