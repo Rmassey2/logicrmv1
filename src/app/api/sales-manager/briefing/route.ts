@@ -127,10 +127,10 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 1000,
-        system: 'You are an AI Sales Manager for a freight brokerage. You analyze rep performance and give direct, actionable daily briefings. Be specific — name the reps, name the deals. Don\'t be vague. Format with clear sections using markdown headers and bullet points.',
+        system: 'You are an AI Sales Manager assistant. Generate a concise daily briefing based on the data provided. Keep the tone professional and factual — like a morning standup report. No dramatic language, no urgency theater, no commands. Just clear facts and straightforward observations.\n\nFormat:\n1. Team Activity Summary — what happened this week in numbers\n2. Deals to Watch — deals with no recent activity, just state the facts (deal name, value, days inactive, stage)\n3. Top Performer — who logged the most activity this week (if data exists)\n4. One Suggestion — one calm, practical suggestion for today\n\nKeep it under 300 words. No exclamation points. No CRITICAL or DEAD labels. No commands. Just facts and one gentle nudge. Use markdown headers and bullet points.',
         messages: [{
           role: 'user',
-          content: `Here is this week's team data:\n\n${dataPrompt}\n\nGive me:\n1. Who needs attention today and why\n2. Which deals are at risk of going cold\n3. Which rep is performing best this week and what they're doing right\n4. One specific action I should take today as the sales manager`,
+          content: `Here is this week's team data:\n\n${dataPrompt}\n\nGenerate the daily briefing following the format in your instructions.`,
         }],
       }),
     })
