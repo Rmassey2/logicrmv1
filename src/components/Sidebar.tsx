@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
-import { LayoutDashboard, Bot, Users, Building2, TrendingUp, Mail, Sparkles, CheckSquare, ClipboardList, Settings, UsersRound, LogOut, BarChart2 } from 'lucide-react'
+import { LayoutDashboard, Bot, Users, Building2, TrendingUp, Mail, Sparkles, CheckSquare, ClipboardList, Settings, LogOut, BarChart2 } from 'lucide-react'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,7 +23,7 @@ const baseNavItems = [
 ]
 
 const salesManagerNavItem = { label: 'Sales Manager', href: '/sales-manager', icon: BarChart2 }
-const adminNavItem = { label: 'Team', href: '/admin', icon: UsersRound }
+// Team link moved inside Sales Manager page
 const settingsNavItem = { label: 'Settings', href: '/settings', icon: Settings }
 
 export default function Sidebar() {
@@ -78,7 +78,7 @@ export default function Sidebar() {
 
   const navItems = [
     ...baseNavItems,
-    ...(isAdmin ? [salesManagerNavItem, adminNavItem] : []),
+    ...(isAdmin ? [salesManagerNavItem] : []),
     settingsNavItem,
   ]
 
@@ -115,7 +115,7 @@ export default function Sidebar() {
             <button
               key={item.href}
               onClick={() => router.push(item.href)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+              className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${
                 isActive
                   ? 'text-white'
                   : 'text-blue-300 hover:text-white hover:bg-white/5'
