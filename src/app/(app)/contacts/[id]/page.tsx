@@ -239,8 +239,9 @@ export default function ContactDetailPage() {
         } else {
           setEnrolledCampaigns([])
         }
-      } catch (err) {
-        console.error('[contact] Failed to fetch campaigns:', err)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (_e) {
+        console.error('[contact] Failed to fetch campaigns:', _e)
         setEnrolledCampaigns([])
       }
 
@@ -547,12 +548,14 @@ export default function ContactDetailPage() {
             body: JSON.stringify({ contact_id: id, instantly_campaign_id: camp.instantly_campaign_id }),
           })
           if (!res.ok) {
-            const errData = await res.json().catch(() => ({ error: 'Unknown' }))
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const errData = await res.json().catch((_e) => ({ error: 'Unknown' }))
             lastPushError = errData.error || `HTTP ${res.status}`
             console.error('[contact] Instantly push failed:', lastPushError)
             pushFailed++
           }
-        } catch (err) { lastPushError = String(err); pushFailed++ }
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (_e) { lastPushError = String(_e); pushFailed++ }
       }
     }
 
@@ -652,436 +655,233 @@ export default function ContactDetailPage() {
   const fullName = `${contact.first_name} ${contact.last_name}`
 
   return (
-    <div className="min-h-screen p-6 space-y-6" style={{ backgroundColor: '#0a1628', color: '#e2e8f0' }}>
+    <div className="min-h-screen p-6" style={{ backgroundColor: '#0a1628', color: '#e2e8f0' }}>
 
-      {/* ── Header ── */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => router.push('/contacts')}
-          className="flex items-center gap-1 text-sm opacity-60 hover:opacity-100 transition-opacity"
-        >
-          <ArrowLeft size={16} /> Back to Contacts
-        </button>
-      </div>
+      {/* Back button */}
+      <button onClick={() => router.push('/contacts')} className="flex items-center gap-1 text-sm opacity-60 hover:opacity-100 transition-opacity mb-4">
+        <ArrowLeft size={16} /> Back to Contacts
+      </button>
 
-      {/* ── Contact Card ── */}
-      <div className="rounded-xl p-6" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.08)' }}>
-        <div className="flex items-start justify-between gap-4">
-
-          {/* Avatar + name */}
-          <div className="flex items-center gap-4">
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold flex-shrink-0"
-              style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}
-            >
-              {initials(contact)}
-            </div>
-
-            {editing ? (
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  value={editData.first_name ?? ''}
-                  onChange={e => setEditData(d => ({ ...d, first_name: e.target.value }))}
-                  placeholder="First name"
-                  className="input-field"
-                />
-                <input
-                  value={editData.last_name ?? ''}
-                  onChange={e => setEditData(d => ({ ...d, last_name: e.target.value }))}
-                  placeholder="Last name"
-                  className="input-field"
-                />
-                <input
-                  value={editData.title ?? ''}
-                  onChange={e => setEditData(d => ({ ...d, title: e.target.value }))}
-                  placeholder="Job title"
-                  className="input-field"
-                />
-                <input
-                  value={editData.company ?? ''}
-                  onChange={e => setEditData(d => ({ ...d, company: e.target.value }))}
-                  placeholder="Company"
-                  className="input-field"
-                />
-              </div>
-            ) : (
-              <div>
-                <h1 className="text-2xl font-bold text-white">{fullName}</h1>
-                {(contact.title || contact.company) && (
-                  <p className="text-sm opacity-70 mt-0.5">
-                    {[contact.title, contact.company].filter(Boolean).join(' · ')}
-                  </p>
-                )}
-                <p className="text-xs opacity-40 mt-1">
-                  Added {formatShortDate(contact.created_at)}
-                </p>
-              </div>
-            )}
+      {/* ══ TOP BAR ══ */}
+      <div className="rounded-xl p-5 mb-6" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.08)' }}>
+        {/* Row 1: Avatar + Name + Company */}
+        <div className="flex items-center gap-4 mb-4">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shrink-0" style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}>
+            {initials(contact)}
           </div>
-
-          {/* Edit / Save buttons */}
-          <div className="flex gap-2 flex-shrink-0">
+          <div className="flex-1 min-w-0">
             {editing ? (
-              <>
-                <button
-                  onClick={saveContact}
-                  disabled={savingContact}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-opacity"
-                  style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}
-                >
-                  <Save size={14} /> {savingContact ? 'Saving…' : 'Save'}
-                </button>
-                <button
-                  onClick={cancelEdit}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium opacity-60 hover:opacity-100"
-                  style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
-                >
-                  <X size={14} /> Cancel
-                </button>
-              </>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={() => setEditing(true)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium opacity-70 hover:opacity-100 transition-opacity"
-                  style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
-                >
-                  <Edit2 size={14} /> Edit
-                </button>
-                <button
-                  onClick={openEmailWriter}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                  style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.4)', backgroundColor: 'rgba(212,147,14,0.08)' }}
-                >
-                  <Sparkles size={14} /> Write Email
-                </button>
-                <button
-                  onClick={handleCallPrep}
-                  disabled={callPrepLoading}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                  style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.4)', backgroundColor: 'rgba(212,147,14,0.08)' }}
-                >
-                  <MessageSquare size={14} /> {callPrepLoading ? 'Prepping...' : 'Call Prep'}
-                </button>
-                <Link
-                  href={`/contacts/${id}/post-call`}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                  style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.4)', backgroundColor: 'rgba(212,147,14,0.08)' }}
-                >
-                  <FileText size={14} /> Post-Call
-                </Link>
-                <button
-                  onClick={openCampaignModal}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                  style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.4)', backgroundColor: 'rgba(212,147,14,0.08)' }}
-                >
-                  <Send size={14} /> Add to Campaign
-                </button>
-                {contact?.email && (
-                  <button
-                    onClick={() => setShowSendEmail(true)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                    style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.4)', backgroundColor: 'rgba(212,147,14,0.08)' }}
-                  >
-                    <MailOpen size={14} /> Send Email
-                  </button>
-                )}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <input value={editData.first_name ?? ''} onChange={e => setEditData(d => ({ ...d, first_name: e.target.value }))} placeholder="First name" className="input-field" />
+                <input value={editData.last_name ?? ''} onChange={e => setEditData(d => ({ ...d, last_name: e.target.value }))} placeholder="Last name" className="input-field" />
+                <input value={editData.title ?? ''} onChange={e => setEditData(d => ({ ...d, title: e.target.value }))} placeholder="Job title" className="input-field" />
+                <input value={editData.company ?? ''} onChange={e => setEditData(d => ({ ...d, company: e.target.value }))} placeholder="Company" className="input-field" />
               </div>
+            ) : (
+              <>
+                <h1 className="text-2xl font-bold text-white truncate">{fullName}</h1>
+                <p className="text-sm opacity-60">{[contact.title, contact.company].filter(Boolean).join(' · ')}{contact.created_at ? ` · Added ${formatShortDate(contact.created_at)}` : ''}</p>
+              </>
             )}
           </div>
         </div>
 
-        {/* Contact info fields */}
-        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Row 2: Action buttons — horizontal */}
+        <div className="flex flex-wrap gap-2">
           {editing ? (
             <>
-              <InfoFieldEdit
-                icon={<Mail size={14} />}
-                label="Email"
-                value={editData.email ?? ''}
-                onChange={v => setEditData(d => ({ ...d, email: v }))}
-                placeholder="email@company.com"
-              />
-              <InfoFieldEdit
-                icon={<Phone size={14} />}
-                label="Phone"
-                value={editData.phone ?? ''}
-                onChange={v => setEditData(d => ({ ...d, phone: v }))}
-                placeholder="(555) 000-0000"
-              />
-              <InfoFieldEdit
-                icon={<Mail size={14} />}
-                label="Secondary Email"
-                value={editData.email2 ?? ''}
-                onChange={v => setEditData(d => ({ ...d, email2: v }))}
-                placeholder="alt@company.com"
-              />
-              <InfoFieldEdit
-                icon={<Phone size={14} />}
-                label="Cell Phone"
-                value={editData.cell_phone ?? ''}
-                onChange={v => setEditData(d => ({ ...d, cell_phone: v }))}
-                placeholder="(555) 000-0000"
-              />
-              <InfoFieldEdit
-                icon={<MapPin size={14} />}
-                label="City"
-                value={editData.city ?? ''}
-                onChange={v => setEditData(d => ({ ...d, city: v }))}
-                placeholder="City"
-              />
-              <InfoFieldEdit
-                icon={<MapPin size={14} />}
-                label="State"
-                value={editData.state ?? ''}
-                onChange={v => setEditData(d => ({ ...d, state: v }))}
-                placeholder="State"
-              />
-              <div className="sm:col-span-2">
-                <label className="block text-xs opacity-50 mb-1">Notes</label>
-                <textarea
-                  value={editData.notes ?? ''}
-                  onChange={e => setEditData(d => ({ ...d, notes: e.target.value }))}
-                  placeholder="Pain points, key info (use their exact words)…"
-                  rows={3}
-                  className="input-field w-full resize-none"
-                />
-              </div>
+              <button onClick={saveContact} disabled={savingContact} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}>
+                <Save size={14} /> {savingContact ? 'Saving…' : 'Save'}
+              </button>
+              <button onClick={cancelEdit} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium opacity-60 hover:opacity-100" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                <X size={14} /> Cancel
+              </button>
             </>
           ) : (
             <>
-              {contact.email && (
-                <InfoField icon={<Mail size={14} />} label="Email">
-                  <a href={`mailto:${contact.email}`} className="hover:underline" style={{ color: '#d4930e' }}>
-                    {contact.email}
-                  </a>
-                </InfoField>
-              )}
-              {contact.phone && (
-                <InfoField icon={<Phone size={14} />} label="Phone">
-                  <a href={`tel:${contact.phone}`} className="hover:underline" style={{ color: '#d4930e' }}>
-                    {contact.phone}
-                  </a>
-                </InfoField>
-              )}
-              {contact.email2 && (
-                <InfoField icon={<Mail size={14} />} label="Secondary Email">
-                  <a href={`mailto:${contact.email2}`} className="hover:underline" style={{ color: '#d4930e' }}>
-                    {contact.email2}
-                  </a>
-                </InfoField>
-              )}
-              {contact.cell_phone && (
-                <InfoField icon={<Phone size={14} />} label="Cell Phone">
-                  <a href={`tel:${contact.cell_phone}`} className="hover:underline" style={{ color: '#d4930e' }}>
-                    {contact.cell_phone}
-                  </a>
-                </InfoField>
-              )}
-              {(contact.city || contact.state) && (
-                <InfoField icon={<MapPin size={14} />} label="Location">
-                  {[contact.city, contact.state].filter(Boolean).join(', ')}
-                </InfoField>
-              )}
-              {contact.company && (
-                <InfoField icon={<Building2 size={14} />} label="Company">
-                  <Link
-                    href={companyId ? `/companies/${companyId}` : `/companies/new?name=${encodeURIComponent(contact.company)}`}
-                    className="hover:underline"
-                    style={{ color: '#d4930e' }}
-                  >
-                    {contact.company}
-                  </Link>
-                </InfoField>
-              )}
-              {contact.notes && (
-                <div className="sm:col-span-2 p-3 rounded-lg text-sm opacity-80 italic"
-                  style={{ backgroundColor: 'rgba(212,147,14,0.08)', borderLeft: '3px solid #d4930e' }}>
-                  {contact.notes}
-                </div>
-              )}
+              <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium opacity-60 hover:opacity-100" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}><Edit2 size={13} /> Edit</button>
+              <button onClick={openEmailWriter} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium" style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.3)', backgroundColor: 'rgba(212,147,14,0.06)' }}><Sparkles size={13} /> Write Email</button>
+              <button onClick={handleCallPrep} disabled={callPrepLoading} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium" style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.3)', backgroundColor: 'rgba(212,147,14,0.06)' }}><MessageSquare size={13} /> {callPrepLoading ? 'Prepping...' : 'Call Prep'}</button>
+              <Link href={`/contacts/${id}/post-call`} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium" style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.3)', backgroundColor: 'rgba(212,147,14,0.06)' }}><FileText size={13} /> Post-Call</Link>
+              <button onClick={openCampaignModal} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium" style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.3)', backgroundColor: 'rgba(212,147,14,0.06)' }}><Send size={13} /> Add to Campaign</button>
+              {contact?.email && <button onClick={() => setShowSendEmail(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium" style={{ color: '#d4930e', border: '1px solid rgba(212,147,14,0.3)', backgroundColor: 'rgba(212,147,14,0.06)' }}><MailOpen size={13} /> Send Email</button>}
             </>
           )}
         </div>
       </div>
 
-      {/* ── Campaigns ── */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-white">Campaigns</h2>
-          <button onClick={openCampaignModal} className="text-xs text-blue-300/50 hover:text-blue-300 transition-colors">+ Add to campaign</button>
-        </div>
-        {enrolledCampaigns.length === 0 ? (
-          <div className="rounded-xl p-4 text-center opacity-40" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <p className="text-xs">Not enrolled in any campaigns</p>
-          </div>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {enrolledCampaigns.map(ec => (
-              <div key={ec.campaign_id} className="flex items-center gap-2 rounded-lg px-3 py-2 group" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <Link href={`/campaigns/${ec.campaign_id}`} className="hover:opacity-80 transition-opacity">
-                  <span className="text-xs font-medium" style={{ color: '#d4930e' }}>{ec.name}</span>
-                  <span className="text-[10px] text-blue-300/40 ml-2">{ec.created_at && new Date(ec.created_at).getFullYear() > 2000 ? formatShortDate(ec.created_at) : 'Recently'}</span>
-                </Link>
-                <button onClick={() => handleRemoveFromCampaign(ec.campaign_id, ec.name)} className="text-blue-300/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all" title="Remove"><X size={12} /></button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── Two-column layout: Activities + Deals ── */}
+      {/* ══ TWO-COLUMN LAYOUT ══ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* Activity Feed — 2/3 width */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">Activity</h2>
-            <button
-              onClick={() => setShowModal(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-opacity hover:opacity-90"
-              style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}
-            >
-              <Plus size={15} /> Log Activity
-            </button>
-          </div>
+        {/* ── LEFT COLUMN (2/3) ── */}
+        <div className="lg:col-span-2 space-y-6">
 
-          {/* Activity filter bar */}
-          <div className="flex gap-1">
-            {(['all', 'email', 'call', 'note'] as const).map(f => (
-              <button
-                key={f}
-                onClick={() => setActivityFilter(f)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${activityFilter === f ? 'text-white' : 'text-blue-300/40 hover:text-blue-300'}`}
-                style={activityFilter === f ? { backgroundColor: 'rgba(212,147,14,0.15)', color: '#d4930e' } : undefined}
-              >
-                {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1) + 's'}
-              </button>
-            ))}
-          </div>
-
-          {activities.length === 0 ? (
-            <div className="rounded-xl p-10 text-center opacity-40"
-              style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <PhoneCall size={32} className="mx-auto mb-3 opacity-40" />
-              <p className="text-sm">No activities yet. Log a call, email, or note to get started.</p>
-            </div>
-          ) : (
-            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-              {activities.filter(a => activityFilter === 'all' || a.type === activityFilter).map(activity => {
-                const meta = getActivityMeta(activity.type)
-                const Icon = meta.icon
-                return (
-                  <div
-                    key={activity.id}
-                    className="rounded-xl p-4 flex gap-4 group"
-                    style={{
-                      backgroundColor: '#0f1c35',
-                      border: '1px solid rgba(255,255,255,0.07)',
-                      opacity: activity.completed ? 0.55 : 1,
-                    }}
-                  >
-                    {/* Icon */}
-                    <div className={`flex-shrink-0 mt-0.5 ${meta.color}`}>
-                      <Icon size={18} />
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className={`font-medium text-sm text-white ${activity.completed ? 'line-through' : ''}`}>
-                          {activity.subject}
-                        </p>
-                        <div className="flex items-center gap-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {activity.type === 'task' && (
-                            <button
-                              onClick={() => toggleComplete(activity)}
-                              className="text-xs px-2 py-0.5 rounded"
-                              style={{
-                                backgroundColor: activity.completed ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.08)',
-                                color: activity.completed ? '#4ade80' : '#94a3b8',
-                              }}
-                            >
-                              {activity.completed ? 'Done' : 'Mark done'}
-                            </button>
-                          )}
-                          <button
-                            onClick={() => deleteActivity(activity.id)}
-                            className="text-red-400 hover:text-red-300 opacity-50 hover:opacity-100 transition-opacity"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {activity.notes && (
-                        <p className="text-xs opacity-60 mt-1 leading-relaxed">{activity.notes}</p>
-                      )}
-
-                      <div className="flex items-center gap-3 mt-2">
-                        <span className="text-xs opacity-40 flex items-center gap-1">
-                          <Clock size={11} /> {formatDate(activity.created_at)}
-                        </span>
-                        <span
-                          className="text-xs px-1.5 py-0.5 rounded capitalize"
-                          style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: '#94a3b8' }}
-                        >
-                          {activity.type}
-                        </span>
-                        {activity.due_date && (
-                          <span className="text-xs opacity-50 flex items-center gap-1">
-                            <CalendarDays size={11} /> Due {formatShortDate(activity.due_date)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Deals — 1/3 width */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-white">Deals</h2>
-
-          {leads.length === 0 ? (
-            <div className="rounded-xl p-6 text-center opacity-40"
-              style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <Briefcase size={24} className="mx-auto mb-2 opacity-40" />
-              <p className="text-xs">No deals linked yet</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {leads.map(lead => (
-                <div
-                  key={lead.id}
-                  className="rounded-xl p-4 cursor-pointer hover:opacity-80 transition-opacity"
-                  style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.07)' }}
-                  onClick={() => router.push(`/pipeline`)}
-                >
-                  <p className="text-sm font-medium text-white">{lead.title}</p>
-                  {lead.value && (
-                    <p className="text-sm font-semibold mt-1" style={{ color: '#d4930e' }}>
-                      ${lead.value.toLocaleString()}
-                    </p>
-                  )}
-                  {lead.pipeline_stages && (
-                    <span
-                      className="inline-block text-xs px-2 py-0.5 rounded-full mt-2"
-                      style={{
-                        backgroundColor: `${lead.pipeline_stages.color}22`,
-                        color: lead.pipeline_stages.color,
-                      }}
-                    >
-                      {lead.pipeline_stages.name}
-                    </span>
-                  )}
+          {/* Contact Info Card */}
+          <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.08)' }}>
+            {editing ? (
+              <div className="grid grid-cols-2 gap-3">
+                <InfoFieldEdit icon={<Mail size={14} />} label="Email" value={editData.email ?? ''} onChange={v => setEditData(d => ({ ...d, email: v }))} placeholder="email@company.com" />
+                <InfoFieldEdit icon={<Phone size={14} />} label="Phone" value={editData.phone ?? ''} onChange={v => setEditData(d => ({ ...d, phone: v }))} placeholder="(555) 000-0000" />
+                <InfoFieldEdit icon={<Mail size={14} />} label="Email 2" value={editData.email2 ?? ''} onChange={v => setEditData(d => ({ ...d, email2: v }))} placeholder="alt@company.com" />
+                <InfoFieldEdit icon={<Phone size={14} />} label="Cell" value={editData.cell_phone ?? ''} onChange={v => setEditData(d => ({ ...d, cell_phone: v }))} placeholder="(555) 000-0000" />
+                <InfoFieldEdit icon={<MapPin size={14} />} label="City" value={editData.city ?? ''} onChange={v => setEditData(d => ({ ...d, city: v }))} placeholder="City" />
+                <InfoFieldEdit icon={<MapPin size={14} />} label="State" value={editData.state ?? ''} onChange={v => setEditData(d => ({ ...d, state: v }))} placeholder="State" />
+                <div className="col-span-2">
+                  <label className="block text-xs opacity-40 mb-1">Notes</label>
+                  <textarea value={editData.notes ?? ''} onChange={e => setEditData(d => ({ ...d, notes: e.target.value }))} placeholder="Notes..." rows={2} className="input-field w-full resize-none" />
                 </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                {contact.email && <InfoField icon={<Mail size={14} />} label="Email"><a href={`mailto:${contact.email}`} className="hover:underline" style={{ color: '#d4930e' }}>{contact.email}</a></InfoField>}
+                {contact.phone && <InfoField icon={<Phone size={14} />} label="Phone"><a href={`tel:${contact.phone}`} className="hover:underline" style={{ color: '#d4930e' }}>{contact.phone}</a></InfoField>}
+                {contact.email2 && <InfoField icon={<Mail size={14} />} label="Email 2"><a href={`mailto:${contact.email2}`} className="hover:underline" style={{ color: '#d4930e' }}>{contact.email2}</a></InfoField>}
+                {contact.cell_phone && <InfoField icon={<Phone size={14} />} label="Cell"><a href={`tel:${contact.cell_phone}`} className="hover:underline" style={{ color: '#d4930e' }}>{contact.cell_phone}</a></InfoField>}
+                {(contact.city || contact.state) && <InfoField icon={<MapPin size={14} />} label="Location">{[contact.city, contact.state].filter(Boolean).join(', ')}</InfoField>}
+                {contact.company && <InfoField icon={<Building2 size={14} />} label="Company"><Link href={companyId ? `/companies/${companyId}` : `/companies/new?name=${encodeURIComponent(contact.company)}`} className="hover:underline" style={{ color: '#d4930e' }}>{contact.company}</Link></InfoField>}
+                {contact.notes && <div className="col-span-2 mt-1 p-2 rounded-lg text-xs opacity-70 italic" style={{ backgroundColor: 'rgba(212,147,14,0.06)', borderLeft: '2px solid #d4930e' }}>{contact.notes}</div>}
+              </div>
+            )}
+          </div>
+
+          {/* Activity Feed */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-white">Activity</h2>
+              <button onClick={() => setShowModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}>
+                <Plus size={13} /> Log Activity
+              </button>
+            </div>
+            <div className="flex gap-1 mb-3">
+              {(['all', 'email', 'call', 'note'] as const).map(f => (
+                <button key={f} onClick={() => setActivityFilter(f)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${activityFilter === f ? 'text-white' : 'text-blue-300/40 hover:text-blue-300'}`} style={activityFilter === f ? { backgroundColor: 'rgba(212,147,14,0.15)', color: '#d4930e' } : undefined}>
+                  {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1) + 's'}
+                </button>
               ))}
             </div>
-          )}
+            {activities.length === 0 ? (
+              <div className="rounded-xl p-10 text-center opacity-40" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <PhoneCall size={32} className="mx-auto mb-3 opacity-40" />
+                <p className="text-sm">No activities yet. Log a call, email, or note to get started.</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                {activities.filter(a => activityFilter === 'all' || a.type === activityFilter).map(activity => {
+                  const meta = getActivityMeta(activity.type)
+                  const Icon = meta.icon
+                  return (
+                    <div key={activity.id} className="rounded-xl p-4 flex gap-4 group" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.07)', opacity: activity.completed ? 0.55 : 1 }}>
+                      <div className={`flex-shrink-0 mt-0.5 ${meta.color}`}><Icon size={18} /></div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className={`font-medium text-sm text-white ${activity.completed ? 'line-through' : ''}`}>{activity.subject}</p>
+                          <div className="flex items-center gap-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {activity.type === 'task' && (
+                              <button onClick={() => toggleComplete(activity)} className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: activity.completed ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.08)', color: activity.completed ? '#4ade80' : '#94a3b8' }}>
+                                {activity.completed ? 'Done' : 'Mark done'}
+                              </button>
+                            )}
+                            <button onClick={() => deleteActivity(activity.id)} className="text-red-400 hover:text-red-300 opacity-50 hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
+                          </div>
+                        </div>
+                        {activity.notes && <p className="text-xs opacity-60 mt-1 leading-relaxed">{activity.notes}</p>}
+                        <div className="flex items-center gap-3 mt-2">
+                          <span className="text-xs opacity-40 flex items-center gap-1"><Clock size={11} /> {formatDate(activity.created_at)}</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded capitalize" style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: '#94a3b8' }}>{activity.type}</span>
+                          {activity.due_date && <span className="text-xs opacity-50 flex items-center gap-1"><CalendarDays size={11} /> Due {formatShortDate(activity.due_date)}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── RIGHT COLUMN (1/3) ── */}
+        <div className="space-y-6">
+
+          {/* Campaigns */}
+          <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-white">Campaigns</h3>
+              <button onClick={openCampaignModal} className="text-[10px] font-medium" style={{ color: '#d4930e' }}>+ Add</button>
+            </div>
+            {enrolledCampaigns.length === 0 ? (
+              <div className="text-center py-4 opacity-40">
+                <Send size={20} className="mx-auto mb-1.5 opacity-40" />
+                <p className="text-xs">Not enrolled in any campaigns</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {enrolledCampaigns.map(ec => (
+                  <div key={ec.campaign_id} className="flex items-center gap-2 rounded-lg px-3 py-2 group" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <Link href={`/campaigns/${ec.campaign_id}`} className="flex-1 min-w-0 hover:opacity-80">
+                      <p className="text-xs font-medium truncate" style={{ color: '#d4930e' }}>{ec.name}</p>
+                      <p className="text-[10px] text-blue-300/40">{ec.created_at && new Date(ec.created_at).getFullYear() > 2000 ? 'Enrolled ' + formatShortDate(ec.created_at) : 'Recently enrolled'}</p>
+                    </Link>
+                    <button onClick={() => handleRemoveFromCampaign(ec.campaign_id, ec.name)} className="text-blue-300/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all shrink-0"><X size={12} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Deals */}
+          <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-white">Deals</h3>
+              <Link href="/pipeline" className="text-[10px] font-medium" style={{ color: '#d4930e' }}>+ Add Deal</Link>
+            </div>
+            {leads.length === 0 ? (
+              <div className="text-center py-4 opacity-40">
+                <Briefcase size={20} className="mx-auto mb-1.5 opacity-40" />
+                <p className="text-xs">No deals yet</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {leads.map(lead => (
+                  <Link key={lead.id} href={`/pipeline/${lead.id}`} className="block rounded-lg px-3 py-2 hover:opacity-80 transition-opacity" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-medium text-white truncate">{lead.title}</p>
+                      {lead.value != null && lead.value > 0 && <span className="text-xs font-semibold" style={{ color: '#d4930e' }}>${lead.value.toLocaleString()}</span>}
+                    </div>
+                    {lead.pipeline_stages && <span className="inline-block text-[10px] px-1.5 py-0.5 rounded-full mt-1" style={{ backgroundColor: `${lead.pipeline_stages.color}22`, color: lead.pipeline_stages.color }}>{lead.pipeline_stages.name}</span>}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Tasks */}
+          <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-white">Tasks</h3>
+              <button onClick={() => { setActivityForm(f => ({ ...f, type: 'task' })); setShowModal(true) }} className="text-[10px] font-medium" style={{ color: '#d4930e' }}>+ Add Task</button>
+            </div>
+            {(() => {
+              const tasks = activities.filter(a => a.type === 'task' && !a.completed).slice(0, 3)
+              return tasks.length === 0 ? (
+                <div className="text-center py-4 opacity-40">
+                  <CheckSquare size={20} className="mx-auto mb-1.5 opacity-40" />
+                  <p className="text-xs">No upcoming tasks</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {tasks.map(t => (
+                    <div key={t.id} className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                      <button onClick={() => toggleComplete(t)} className="shrink-0"><CheckSquare size={14} className="text-blue-300/30 hover:text-emerald-400 transition-colors" /></button>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-white truncate">{t.subject}</p>
+                        {t.due_date && <p className="text-[10px] text-blue-300/40">{formatShortDate(t.due_date)}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
+          </div>
         </div>
       </div>
 
