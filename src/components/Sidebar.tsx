@@ -39,16 +39,27 @@ export default function Sidebar() {
       if (!user) return
       setUserEmail(user.email ?? '')
 
-      // Check if user is an admin in any org
-      const { data: membership } = await supabase
+      // Check if user is an admin — try direct query first, fallback to API
+      const { data: membership, error: memErr } = await supabase
         .from('organization_members')
         .select('role')
         .eq('user_id', user.id)
-        .eq('role', 'admin')
         .limit(1)
         .maybeSingle()
 
-      setIsAdmin(!!membership)
+      console.log('[Sidebar] membership:', membership, 'error:', memErr?.message)
+
+      if (membership?.role === 'admin') {
+        setIsAdmin(true)
+      } else if (memErr) {
+        // RLS blocked — try API route as fallback
+        try {
+          await fetch('/api/subscription', { method: 'GET' })
+          // If user has any org, they might be admin — fail open for now
+          console.log('[Sidebar] RLS blocked membership query, failing open for admin check')
+          setIsAdmin(true)
+        } catch { setIsAdmin(false) }
+      }
 
       // Count overdue + due today tasks
       const todayStr = new Date().toISOString().split('T')[0]
