@@ -6,7 +6,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Loader2, Users, DollarSign, ClipboardList, AlertTriangle, Clock } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import { Loader2, Users, DollarSign, ClipboardList, AlertTriangle, Clock, RefreshCw } from 'lucide-react'
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
@@ -37,6 +38,9 @@ export default function SalesManagerPage() {
   const [deals, setDeals] = useState<Deal[]>([])
   const [recent, setRecent] = useState<RecentActivity[]>([])
   const [totals, setTotals] = useState({ reps: 0, contacts: 0, pipelineValue: 0, activitiesThisWeek: 0 })
+  const [briefing, setBriefing] = useState('')
+  const [briefingLoading, setBriefingLoading] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState('')
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -53,8 +57,29 @@ export default function SalesManagerPage() {
     if (data.deals) setDeals(data.deals)
     if (data.recentActivities) setRecent(data.recentActivities)
     if (data.totals) setTotals(data.totals)
+    setCurrentUserId(user.id)
     setLoading(false)
+
+    // Load AI briefing in background
+    loadBriefing(user.id)
   }, [router])
+
+  async function loadBriefing(uid: string) {
+    setBriefingLoading(true)
+    try {
+      const res = await fetch('/api/sales-manager/briefing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: uid }),
+      })
+      const data = await res.json()
+      setBriefing(data.briefing || 'Unable to load briefing — click Refresh to try again.')
+    } catch (briefErr) {
+      console.error('Briefing error:', briefErr)
+      setBriefing('Unable to load briefing — click Refresh to try again.')
+    }
+    setBriefingLoading(false)
+  }
 
   useEffect(() => { load() }, [load])
 
@@ -64,7 +89,7 @@ export default function SalesManagerPage() {
     </div>
   )
 
-  const coldDeals = deals.filter(d => d.daysInactive >= 7).sort((a, b) => b.daysInactive - a.daysInactive)
+  const coldDeals = deals.filter(d => d.daysInactive >= 7 && d.daysInactive <= 365).sort((a, b) => b.daysInactive - a.daysInactive)
 
   return (
     <div className="px-8 py-8 max-w-7xl">
@@ -86,6 +111,34 @@ export default function SalesManagerPage() {
           </div>
         ))}
       </div>
+
+      {/* ── AI Briefing ── */}
+      <div className="rounded-2xl p-5 mb-6" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(212,147,14,0.2)' }}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: '#d4930e' }}>AI Sales Manager</h3>
+          <button onClick={() => loadBriefing(currentUserId)} disabled={briefingLoading} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-300 border border-white/10 hover:text-white transition-colors disabled:opacity-50">
+            <RefreshCw className={`w-3 h-3 ${briefingLoading ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+        </div>
+        {briefingLoading && !briefing ? (
+          <div className="flex items-center gap-3 py-6 justify-center">
+            <Loader2 className="w-5 h-5 animate-spin" style={{ color: '#d4930e' }} />
+            <p className="text-sm text-blue-300/60">Analyzing team performance...</p>
+          </div>
+        ) : (
+          <div className="text-sm text-blue-200/80 leading-relaxed sm-brief">
+            <ReactMarkdown>{briefing}</ReactMarkdown>
+          </div>
+        )}
+      </div>
+
+      <style jsx global>{`
+        .sm-brief strong { color: #d4930e; font-weight: 600; }
+        .sm-brief h1, .sm-brief h2, .sm-brief h3 { color: #fff; font-weight: 600; margin: 0.4em 0 0.2em; font-size: 0.95em; }
+        .sm-brief p { margin: 0.3em 0; }
+        .sm-brief ul, .sm-brief ol { margin: 0.3em 0; padding-left: 1.2em; }
+        .sm-brief li { margin: 0.15em 0; }
+      `}</style>
 
       {/* ── Rep Scorecards ── */}
       <h3 className="text-sm font-semibold uppercase tracking-wide text-blue-300 mb-3">Rep Scorecards</h3>
@@ -143,13 +196,13 @@ export default function SalesManagerPage() {
             </thead>
             <tbody>
               {[...deals].sort((a, b) => b.daysInactive - a.daysInactive).slice(0, 20).map(d => (
-                <tr key={d.id} className={`border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer ${d.daysInactive >= 7 ? 'bg-red-500/5' : ''}`} onClick={() => router.push(`/pipeline/${d.id}`)}>
+                <tr key={d.id} className={`border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer ${d.daysInactive >= 7 && d.daysInactive <= 365 ? 'bg-red-500/5' : ''}`} onClick={() => router.push(`/pipeline/${d.id}`)}>
                   <td className="px-4 py-2.5 text-xs text-white font-medium">{d.title}</td>
                   <td className="px-4 py-2.5 text-xs text-blue-300/60">{d.rep}</td>
                   <td className="px-4 py-2.5 text-xs font-semibold" style={{ color: '#d4930e' }}>{d.value ? `$${d.value.toLocaleString()}` : '—'}</td>
                   <td className="px-4 py-2.5"><span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${d.stageColor}22`, color: d.stageColor }}>{d.stageName}</span></td>
                   <td className="px-4 py-2.5 text-xs text-blue-300/40">{timeAgo(d.lastActivity)}</td>
-                  <td className={`px-4 py-2.5 text-xs font-medium ${d.daysInactive >= 7 ? 'text-red-400' : 'text-blue-300/40'}`}>{d.daysInactive === 999 ? '—' : d.daysInactive}</td>
+                  <td className={`px-4 py-2.5 text-xs font-medium ${d.daysInactive >= 7 && d.daysInactive <= 365 ? 'text-red-400' : 'text-blue-300/40'}`}>{d.daysInactive > 365 ? '—' : d.daysInactive}</td>
                 </tr>
               ))}
             </tbody>
@@ -167,7 +220,7 @@ export default function SalesManagerPage() {
               <Link key={d.id} href={`/pipeline/${d.id}`} className="block px-3 py-2 rounded-lg hover:opacity-80" style={{ backgroundColor: 'rgba(255,255,255,0.03)' }}>
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-white truncate">{d.title}</p>
-                  <span className="text-[10px] text-red-400 shrink-0 ml-2">{d.daysInactive}d</span>
+                  <span className="text-[10px] text-red-400 shrink-0 ml-2">{d.daysInactive > 365 ? '—' : `${d.daysInactive}d`}</span>
                 </div>
                 <p className="text-[10px] text-blue-300/40">{d.rep} · {d.value ? `$${d.value.toLocaleString()}` : 'No value'} · {d.stageName}</p>
               </Link>
