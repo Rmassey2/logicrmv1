@@ -368,7 +368,8 @@ export default function ContactDetailPage() {
       const data = await res.json()
       if (!res.ok) { toast.error(data.error ?? 'Failed to generate email'); }
       else { setGeneratedEmail(data.email) }
-    } catch { toast.error('Failed to generate email') }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (_e) { toast.error('Failed to generate email') }
     setEmailGenerating(false)
   }
 
@@ -426,7 +427,8 @@ export default function ContactDetailPage() {
       const data = await res.json()
       if (!res.ok) { toast.error(data.error ?? 'Failed to generate brief') }
       else { setCallBrief(data.brief) }
-    } catch { toast.error('Failed to generate brief') }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (_e) { toast.error('Failed to generate brief') }
     setCallPrepLoading(false)
   }
 
@@ -630,7 +632,8 @@ export default function ContactDetailPage() {
         const { data: acts } = await supabase.from('activities').select('*').eq('contact_id', id).order('created_at', { ascending: false })
         setActivities(acts ?? [])
       }
-    } catch { toast.error('Send failed') }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (_e) { toast.error('Send failed') }
     setSending(false)
   }
 
@@ -1427,7 +1430,8 @@ export default function ContactDetailPage() {
                             setShowEmailModal(false)
                             setGeneratedEmail(null)
                           }
-                        } catch {
+                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                        } catch (_e) {
                           toast.error('Failed to send email')
                         }
                         setSendingDraft(false)
