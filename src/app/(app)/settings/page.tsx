@@ -211,28 +211,25 @@ export default function SettingsPage() {
       .order('position', { ascending: true })
     setStages(stageData ?? [])
 
-    // Gmail connection check
-    const { data: gmailSetting } = await supabase
-      .from('user_settings')
-      .select('value')
-      .eq('user_id', user.email ?? '')
-      .eq('key', 'gmail_email')
-      .maybeSingle()
-    if (gmailSetting?.value) {
-      setGmailConnected(true)
-      setGmailEmail(gmailSetting.value)
-    }
+    // Gmail connection check via API (bypasses RLS)
+    try {
+      const gmailRes = await fetch(`/api/gmail/status?userId=${user.id}`)
+      const gmailData = await gmailRes.json()
+      if (gmailData.connected) {
+        setGmailConnected(true)
+        setGmailEmail(gmailData.email)
+      }
+    } catch { /* ignore */ }
 
-    // Outlook connection check
-    const { data: outlookConn } = await supabase
-      .from('outlook_connections')
-      .select('email')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    if (outlookConn?.email) {
-      setOutlookConnected(true)
-      setOutlookEmail(outlookConn.email)
-    }
+    // Outlook connection check via API (bypasses RLS)
+    try {
+      const outlookRes = await fetch(`/api/outlook/status?userId=${user.id}`)
+      const outlookData = await outlookRes.json()
+      if (outlookData.connected) {
+        setOutlookConnected(true)
+        setOutlookEmail(outlookData.email)
+      }
+    } catch { /* ignore */ }
 
     // Check URL params for Outlook connect result
     if (typeof window !== 'undefined') {
