@@ -139,6 +139,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
 
   // Profile
+  const [currentUserId, setCurrentUserId] = useState('')
   const [userEmail, setUserEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
@@ -191,6 +192,7 @@ export default function SettingsPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
+    setCurrentUserId(user.id)
     setUserEmail(user.email ?? '')
 
     // Display name from user metadata
@@ -658,7 +660,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
               ) : (
-                <a href="/api/outlook/connect" className="inline-block px-4 py-2 rounded-lg text-xs font-semibold hover:brightness-110 transition-colors" style={{ backgroundColor: '#0078d4', color: '#fff' }}>
+                <a href={`/api/outlook/connect?userId=${currentUserId}`} className="inline-block px-4 py-2 rounded-lg text-xs font-semibold hover:brightness-110 transition-colors" style={{ backgroundColor: '#0078d4', color: '#fff' }}>
                   Connect Outlook
                 </a>
               )}

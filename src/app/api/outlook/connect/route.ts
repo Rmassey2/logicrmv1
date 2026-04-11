@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 const SCOPES = [
   'openid',
@@ -9,7 +9,7 @@ const SCOPES = [
   'https://graph.microsoft.com/Mail.Send',
 ].join(' ')
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const clientId = process.env.MICROSOFT_CLIENT_ID
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://logicrmv1.vercel.app'
 
@@ -17,7 +17,15 @@ export async function GET() {
     return NextResponse.redirect(`${appUrl}/settings?tab=email&outlook=error&reason=missing_config`)
   }
 
+  // Get user_id from query param (passed by the client)
+  const userId = req.nextUrl.searchParams.get('userId')
+  if (!userId) {
+    return NextResponse.redirect(`${appUrl}/settings?tab=email&outlook=error&reason=no_user`)
+  }
+
   const redirectUri = `${appUrl}/api/outlook/callback`
+  const state = Buffer.from(JSON.stringify({ userId })).toString('base64url')
+
   const params = new URLSearchParams({
     client_id: clientId,
     response_type: 'code',
@@ -25,6 +33,7 @@ export async function GET() {
     scope: SCOPES,
     response_mode: 'query',
     prompt: 'consent',
+    state,
   })
 
   return NextResponse.redirect(
