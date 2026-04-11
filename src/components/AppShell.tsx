@@ -21,6 +21,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) {
+        // Don't redirect to login if we're returning from an OAuth callback
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search)
+          if (params.get('outlook') || params.get('gmail')) {
+            // OAuth callback redirect — retry auth after a short delay
+            setTimeout(() => window.location.reload(), 1000)
+            return
+          }
+        }
         router.push('/auth/login')
         return
       }
