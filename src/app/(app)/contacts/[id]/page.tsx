@@ -33,6 +33,8 @@ import {
   FileText,
   Search,
   Send,
+  DollarSign,
+  ClipboardList,
 } from 'lucide-react'
 
 const supabase = createClient(
@@ -55,6 +57,8 @@ interface Contact {
   city: string | null
   state: string | null
   notes: string | null
+  shipper_tier: string | null
+  loads_per_month: string | null
   created_at: string
 }
 
@@ -107,6 +111,19 @@ function formatShortDate(iso: string) {
 
 function initials(c: Contact) {
   return `${c.first_name?.[0] ?? ''}${c.last_name?.[0] ?? ''}`.toUpperCase()
+}
+
+const TIER_STYLES: Record<string, { bg: string; text: string }> = {
+  Small: { bg: 'bg-blue-500/10', text: 'text-blue-400' },
+  Medium: { bg: 'bg-yellow-500/10', text: 'text-yellow-400' },
+  Large: { bg: 'bg-orange-500/10', text: 'text-orange-400' },
+  XL: { bg: 'bg-red-500/10', text: 'text-red-400' },
+}
+
+function TierBadge({ tier }: { tier: string | null }) {
+  if (!tier || !TIER_STYLES[tier]) return null
+  const s = TIER_STYLES[tier]
+  return <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${s.bg} ${s.text}`}>{tier}</span>
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -269,6 +286,8 @@ export default function ContactDetailPage() {
         city:       editData.city,
         state:      editData.state,
         notes:      editData.notes,
+        shipper_tier: editData.shipper_tier,
+        loads_per_month: editData.loads_per_month,
       })
       .eq('id', contact.id)
 
@@ -679,7 +698,7 @@ export default function ContactDetailPage() {
               </div>
             ) : (
               <>
-                <h1 className="text-2xl font-bold text-white truncate">{fullName}</h1>
+                <h1 className="text-2xl font-bold text-white truncate flex items-center gap-2">{fullName} <TierBadge tier={contact.shipper_tier} /></h1>
                 <p className="text-sm opacity-60">{[contact.title, contact.company].filter(Boolean).join(' · ')}{contact.created_at ? ` · Added ${formatShortDate(contact.created_at)}` : ''}</p>
               </>
             )}
@@ -739,6 +758,16 @@ export default function ContactDetailPage() {
                 {contact.cell_phone && <InfoField icon={<Phone size={14} />} label="Cell"><a href={`tel:${contact.cell_phone}`} className="hover:underline" style={{ color: '#d4930e' }}>{contact.cell_phone}</a></InfoField>}
                 {(contact.city || contact.state) && <InfoField icon={<MapPin size={14} />} label="Location">{[contact.city, contact.state].filter(Boolean).join(', ')}</InfoField>}
                 {contact.company && <InfoField icon={<Building2 size={14} />} label="Company"><Link href={companyId ? `/companies/${companyId}` : `/companies/new?name=${encodeURIComponent(contact.company)}`} className="hover:underline" style={{ color: '#d4930e' }}>{contact.company}</Link></InfoField>}
+                <InfoField icon={<DollarSign size={14} />} label="Shipper Tier">
+                  <select value={contact.shipper_tier || ''} onChange={async (e) => { const v = e.target.value || null; await supabase.from('contacts').update({ shipper_tier: v }).eq('id', contact.id); setContact({ ...contact, shipper_tier: v }); toast.success('Tier updated') }} className="bg-transparent text-white text-sm focus:outline-none cursor-pointer" style={{ color: '#d4930e' }}>
+                    <option value="" className="bg-[#0f1c35]">Not set</option>
+                    <option value="Small" className="bg-[#0f1c35]">Small</option>
+                    <option value="Medium" className="bg-[#0f1c35]">Medium</option>
+                    <option value="Large" className="bg-[#0f1c35]">Large</option>
+                    <option value="XL" className="bg-[#0f1c35]">XL</option>
+                  </select>
+                </InfoField>
+                {contact.loads_per_month && <InfoField icon={<ClipboardList size={14} />} label="Loads/Month">{contact.loads_per_month}</InfoField>}
                 {contact.notes && <div className="col-span-2 mt-1 p-2 rounded-lg text-xs opacity-70 italic" style={{ backgroundColor: 'rgba(212,147,14,0.06)', borderLeft: '2px solid #d4930e' }}>{contact.notes}</div>}
               </div>
             )}

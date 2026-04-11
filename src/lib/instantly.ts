@@ -47,7 +47,8 @@ export async function createCampaign(
   name: string,
   subject: string,
   body: string,
-  senderName?: string
+  senderName?: string,
+  sendingEmail?: string
 ) {
   return request<{ id: string }>('/campaigns', {
     method: 'POST',
@@ -55,7 +56,7 @@ export async function createCampaign(
       name,
       subject,
       body,
-      email_list: ['jarrett@macoships.com'],
+      email_list: [sendingEmail || 'jarrett@macoships.com'],
       ...(senderName ? { from_name: senderName } : {}),
       open_tracking: false,
       link_tracking: false,

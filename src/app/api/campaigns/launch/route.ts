@@ -127,6 +127,7 @@ export async function POST(req: NextRequest) {
     const campaignUserId = campaign.user_id
     let signature = ''
     let sigName = 'Jarrett Bailey'
+    let sendingEmail = ''
     if (campaignUserId) {
       const { data: authUser } = await supabase.auth.admin.getUserById(campaignUserId)
       sigName = authUser?.user?.user_metadata?.display_name || 'Jarrett Bailey'
@@ -145,13 +146,14 @@ export async function POST(req: NextRequest) {
       if (membership) {
         const { data: org } = await supabase
           .from('organizations')
-          .select('company_name, company_phone, company_website')
+          .select('company_name, company_phone, company_website, sending_email')
           .eq('id', membership.org_id)
           .single()
         if (org) {
           sigCompany = org.company_name || 'Maco Logistics'
           sigPhone = org.company_phone || ''
           sigWebsite = org.company_website || ''
+          sendingEmail = org.sending_email || ''
         }
       }
 
@@ -168,7 +170,8 @@ export async function POST(req: NextRequest) {
       campaign.name,
       campaign.subject,
       campaign.body ?? '',
-      sigName
+      sigName,
+      sendingEmail || undefined
     )
 
     console.log('[launch] Step 4 - Instantly create:', {

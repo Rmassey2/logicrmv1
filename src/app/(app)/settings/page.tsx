@@ -40,7 +40,7 @@ interface TeamMember {
   campaigns_count: number
 }
 
-const COMPANY_KEYS = ['company_name', 'company_phone', 'company_website', 'company_address'] as const
+const COMPANY_KEYS = ['company_name', 'company_phone', 'company_website', 'company_address', 'sending_email'] as const
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -150,6 +150,7 @@ export default function SettingsPage() {
     company_phone: '',
     company_website: '',
     company_address: '',
+    sending_email: '',
   })
   const [savingCompany, setSavingCompany] = useState(false)
 
@@ -683,9 +684,28 @@ export default function SettingsPage() {
         </SectionCard>
 
         {/* Sending Address */}
-        <SectionCard title="Sending Address">
-          <p className="text-sm text-blue-200">Emails sent from LogiCRM use: <span className="font-medium" style={{ color: '#d4930e' }}>jarrett@macoships.com</span> via Resend</p>
-          <p className="text-xs text-blue-300/40 mt-2">To change your sending address, contact support.</p>
+        <SectionCard title="Outreach Sending Address">
+          <div className="space-y-3">
+            <div>
+              <label className={labelClass}>Sending Email</label>
+              <input
+                type="email"
+                value={company.sending_email || ''}
+                onChange={e => setCompany(p => ({ ...p, sending_email: e.target.value }))}
+                placeholder="yourname@yourdomain.com"
+                className={inputClass}
+              />
+              <p className="text-[10px] text-blue-300/30 mt-1">Used for Instantly campaigns. Usually your warmed-up outreach domain.</p>
+            </div>
+            <button
+              onClick={saveCompany}
+              disabled={savingCompany}
+              className="px-4 py-2 rounded-lg font-semibold text-sm hover:brightness-110 disabled:opacity-60 transition-colors"
+              style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}
+            >
+              {savingCompany ? 'Saving...' : 'Save'}
+            </button>
+          </div>
         </SectionCard>
       </div>
       )}
