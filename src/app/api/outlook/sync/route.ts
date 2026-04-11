@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     const { user_id } = await req.json()
     if (!user_id) return NextResponse.json({ error: 'user_id required' }, { status: 400 })
 
-    // Get connection
+    // Get connection (includes user's email for direction matching)
     const { data: conn } = await supabase
       .from('outlook_connections')
       .select('*')
@@ -52,6 +52,8 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (!conn) return NextResponse.json({ error: 'Outlook not connected' }, { status: 400 })
+
+    const userEmail = (conn.email || '').toLowerCase()
 
     // Refresh token if expired
     let accessToken = conn.access_token
@@ -62,9 +64,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Fetch recent emails
+    // Fetch recent emails (100 for broader coverage)
     const graphRes = await fetch(
-      'https://graph.microsoft.com/v1.0/me/messages?$top=50&$orderby=receivedDateTime desc&$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isDraft,sentDateTime',
+      'https://graph.microsoft.com/v1.0/me/messages?$top=100&$orderby=receivedDateTime desc&$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isDraft,sentDateTime',
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
 
@@ -77,7 +79,7 @@ export async function POST(req: NextRequest) {
     const graphData = await graphRes.json()
     const messages = graphData.value || []
 
-    // Get user's contacts for email matching
+    // Build exact email → contact_id map from user's contacts
     const { data: contacts } = await supabase
       .from('contacts')
       .select('id, email, email2')
@@ -85,62 +87,74 @@ export async function POST(req: NextRequest) {
 
     const emailToContact = new Map<string, string>()
     for (const c of (contacts || [])) {
-      if (c.email) emailToContact.set(c.email.toLowerCase(), c.id)
-      if (c.email2) emailToContact.set(c.email2.toLowerCase(), c.id)
+      if (c.email) emailToContact.set(c.email.toLowerCase().trim(), c.id)
+      if (c.email2) emailToContact.set(c.email2.toLowerCase().trim(), c.id)
     }
 
+    // Delete previously synced outlook emails to re-sync cleanly
+    // (only delete activities that were auto-synced, not manually logged)
+    await supabase
+      .from('activities')
+      .delete()
+      .eq('user_id', user_id)
+      .eq('type', 'email')
+      .like('notes', '%[outlook-sync]%')
+
     let synced = 0
+    let skipped = 0
 
     for (const msg of messages) {
+      // Skip drafts
       if (msg.isDraft) continue
 
-      // Collect all email addresses from this message
-      const addresses: string[] = []
-      if (msg.from?.emailAddress?.address) addresses.push(msg.from.emailAddress.address.toLowerCase())
-      for (const r of (msg.toRecipients || [])) {
-        if (r.emailAddress?.address) addresses.push(r.emailAddress.address.toLowerCase())
-      }
+      // Skip emails with no subject or common marketing patterns
+      const subject = (msg.subject || '').trim()
+      if (!subject) continue
 
-      // Find matching contact
+      const fromAddr = (msg.from?.emailAddress?.address || '').toLowerCase().trim()
+      const toAddrs = (msg.toRecipients || [])
+        .map((r: { emailAddress?: { address?: string } }) => (r.emailAddress?.address || '').toLowerCase().trim())
+        .filter(Boolean)
+
+      // Determine direction and find the OTHER person's email
       let contactId: string | null = null
-      for (const addr of addresses) {
-        const match = emailToContact.get(addr)
-        if (match) { contactId = match; break }
+
+      if (fromAddr === userEmail) {
+        // User SENT this email — match TO recipients against contacts
+        for (const addr of toAddrs) {
+          const match = emailToContact.get(addr)
+          if (match) { contactId = match; break }
+        }
+      } else {
+        // User RECEIVED this email — match FROM address against contacts
+        contactId = emailToContact.get(fromAddr) || null
       }
-      if (!contactId) continue
 
-      // Check if already logged (same subject + contact + same day)
-      const msgDate = msg.receivedDateTime || msg.sentDateTime
+      if (!contactId) {
+        skipped++
+        continue
+      }
+
+      // Get the email date
+      const msgDate = msg.sentDateTime || msg.receivedDateTime
       if (!msgDate) continue
-      const dayStr = msgDate.split('T')[0]
 
-      const { data: existing } = await supabase
-        .from('activities')
-        .select('id')
-        .eq('contact_id', contactId)
-        .eq('user_id', user_id)
-        .eq('type', 'email')
-        .eq('subject', msg.subject || '(no subject)')
-        .gte('created_at', `${dayStr}T00:00:00`)
-        .lte('created_at', `${dayStr}T23:59:59`)
-        .limit(1)
-        .maybeSingle()
+      // Tag with [outlook-sync] so we can identify auto-synced emails
+      const notes = `${(msg.bodyPreview || '').slice(0, 500)}\n[outlook-sync]`
+      const direction = fromAddr === userEmail ? 'Sent' : 'Received'
 
-      if (existing) continue
-
-      // Log as activity
       await supabase.from('activities').insert({
         contact_id: contactId,
         user_id,
         type: 'email',
-        subject: msg.subject || '(no subject)',
-        notes: (msg.bodyPreview || '').slice(0, 500),
+        subject: `${direction}: ${subject}`,
+        notes,
         created_at: msgDate,
       })
       synced++
     }
 
-    console.log('[outlook/sync] Synced', synced, 'emails for user:', user_id)
+    console.log('[outlook/sync] Synced', synced, 'emails, skipped', skipped, 'for user:', user_id)
     return NextResponse.json({ success: true, synced })
   } catch (err) {
     console.error('[outlook/sync] Error:', err)
