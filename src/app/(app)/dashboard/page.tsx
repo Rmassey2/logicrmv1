@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
+import ReactMarkdown from 'react-markdown'
 import Link from 'next/link'
 import { Users, TrendingUp, Mail, Upload, Loader2 } from 'lucide-react'
 
@@ -116,7 +117,7 @@ export default function DashboardPage() {
                   {greeting.agent.role}
                 </span>
               </div>
-              <p className="text-sm text-blue-200/80 leading-relaxed">{greeting.text}</p>
+              <div className="text-sm text-blue-200/80 leading-relaxed dash-md"><ReactMarkdown>{greeting.text}</ReactMarkdown></div>
             </div>
           </div>
         </Link>
@@ -168,6 +169,12 @@ export default function DashboardPage() {
       </div>
 
       {/* Footer */}
+      <style jsx global>{`
+        .dash-md strong { color: #fff; font-weight: 600; }
+        .dash-md p { margin: 0.2em 0; }
+        .dash-md ul { margin: 0.2em 0; padding-left: 1.2em; }
+        .dash-md li { margin: 0.1em 0; }
+      `}</style>
       <p className="text-center text-blue-400/50 text-xs mt-16">
         2026 Bid Genie AI · LogiCRM
       </p>
