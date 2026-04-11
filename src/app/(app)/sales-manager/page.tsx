@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Loader2, Users, DollarSign, ClipboardList, AlertTriangle, Clock, RefreshCw } from 'lucide-react'
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
@@ -127,7 +128,7 @@ export default function SalesManagerPage() {
           </div>
         ) : (
           <div className="text-sm text-blue-200/80 leading-relaxed sm-brief">
-            <ReactMarkdown>{briefing}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{briefing}</ReactMarkdown>
           </div>
         )}
       </div>
@@ -138,6 +139,10 @@ export default function SalesManagerPage() {
         .sm-brief p { margin: 0.3em 0; }
         .sm-brief ul, .sm-brief ol { margin: 0.3em 0; padding-left: 1.2em; }
         .sm-brief li { margin: 0.15em 0; }
+        .sm-brief table { width: 100%; border-collapse: collapse; margin: 0.5em 0; font-size: 0.85em; }
+        .sm-brief th, .sm-brief td { border: 1px solid rgba(255,255,255,0.1); padding: 0.4em 0.6em; text-align: left; }
+        .sm-brief th { background: rgba(255,255,255,0.05); color: #fff; font-weight: 600; }
+        .sm-brief td { color: #94a3b8; }
       `}</style>
 
       {/* ── Rep Scorecards ── */}
