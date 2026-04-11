@@ -213,42 +213,31 @@ export default function SettingsPage() {
       .order('position', { ascending: true })
     setStages(stageData ?? [])
 
-    // Gmail connection check via API (bypasses RLS)
+    // Gmail connection check via POST API (bypasses RLS)
     try {
-      const gmailRes = await fetch(`/api/gmail/status?userId=${user.id}`)
+      const gmailRes = await fetch('/api/gmail/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id }) })
       const gmailData = await gmailRes.json()
-      if (gmailData.connected) {
-        setGmailConnected(true)
-        setGmailEmail(gmailData.email)
-      }
-    } catch { /* ignore */ }
+      if (gmailData.connected) { setGmailConnected(true); setGmailEmail(gmailData.email) }
+    } catch (_e) { /* ignore */ } // eslint-disable-line @typescript-eslint/no-unused-vars
 
-    // Outlook connection check via API (bypasses RLS)
+    // Outlook connection check via POST API (bypasses RLS)
     try {
-      const outlookRes = await fetch(`/api/outlook/status?userId=${user.id}`)
+      const outlookRes = await fetch('/api/outlook/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id }) })
       const outlookData = await outlookRes.json()
-      console.log('[settings] Outlook status:', outlookData)
-      if (outlookData.connected) {
-        setOutlookConnected(true)
-        setOutlookEmail(outlookData.email)
-      }
-    } catch (e) { console.error('[settings] Outlook status fetch failed:', e) }
+      if (outlookData.connected) { setOutlookConnected(true); setOutlookEmail(outlookData.email) }
+    } catch (_e) { /* ignore */ } // eslint-disable-line @typescript-eslint/no-unused-vars
 
     // Check URL params for Outlook connect result
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       if (params.get('outlook') === 'connected') {
         toast.success('Outlook connected successfully!')
-        // Force re-check outlook status since we just connected
         setOutlookConnected(true)
         try {
-          const recheck = await fetch(`/api/outlook/status?userId=${user.id}`)
+          const recheck = await fetch('/api/outlook/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id }) })
           const recheckData = await recheck.json()
-          console.log('[settings] Outlook recheck after connect:', recheckData)
-          if (recheckData.connected) {
-            setOutlookEmail(recheckData.email)
-          }
-        } catch { /* ignore */ }
+          if (recheckData.connected) { setOutlookEmail(recheckData.email) }
+        } catch (_e) { /* ignore */ } // eslint-disable-line @typescript-eslint/no-unused-vars
       } else if (params.get('outlook') === 'error') {
         toast.error('Failed to connect Outlook')
       }
