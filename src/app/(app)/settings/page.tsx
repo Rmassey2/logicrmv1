@@ -227,17 +227,28 @@ export default function SettingsPage() {
     try {
       const outlookRes = await fetch(`/api/outlook/status?userId=${user.id}`)
       const outlookData = await outlookRes.json()
+      console.log('[settings] Outlook status:', outlookData)
       if (outlookData.connected) {
         setOutlookConnected(true)
         setOutlookEmail(outlookData.email)
       }
-    } catch { /* ignore */ }
+    } catch (e) { console.error('[settings] Outlook status fetch failed:', e) }
 
     // Check URL params for Outlook connect result
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       if (params.get('outlook') === 'connected') {
         toast.success('Outlook connected successfully!')
+        // Force re-check outlook status since we just connected
+        setOutlookConnected(true)
+        try {
+          const recheck = await fetch(`/api/outlook/status?userId=${user.id}`)
+          const recheckData = await recheck.json()
+          console.log('[settings] Outlook recheck after connect:', recheckData)
+          if (recheckData.connected) {
+            setOutlookEmail(recheckData.email)
+          }
+        } catch { /* ignore */ }
       } else if (params.get('outlook') === 'error') {
         toast.error('Failed to connect Outlook')
       }
