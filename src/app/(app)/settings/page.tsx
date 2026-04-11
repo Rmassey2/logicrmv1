@@ -788,38 +788,6 @@ export default function SettingsPage() {
           </div>
         </SectionCard>
 
-        {/* ── Gmail Integration ─────────────────────────────────────────── */}
-        <SectionCard title="Gmail Integration">
-          {gmailConnected ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
-                <p className="text-sm text-white">Connected as <span style={{ color: '#d4930e' }}>{gmailEmail}</span></p>
-              </div>
-              <button
-                onClick={handleGmailSync}
-                disabled={gmailSyncing}
-                className="px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 disabled:opacity-60 transition-colors"
-                style={{ backgroundColor: '#d4930e' }}
-              >
-                {gmailSyncing ? 'Syncing...' : 'Sync Emails Now'}
-              </button>
-              <p className="text-blue-300/40 text-xs">Syncs sent emails and matches them to your contacts as activities.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-blue-300/60">Connect your Gmail to automatically sync email activity with your contacts.</p>
-              <a
-                href="/api/gmail/connect"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 transition-colors"
-                style={{ backgroundColor: '#d4930e' }}
-              >
-                Connect Gmail
-              </a>
-            </div>
-          )}
-        </SectionCard>
-
         {/* ── Team ───────────────────────────────────────────────────────── */}
         {orgId && (
           <SectionCard title={`Team — ${orgName}`}>
