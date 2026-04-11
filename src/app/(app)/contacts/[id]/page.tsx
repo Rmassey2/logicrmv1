@@ -134,6 +134,7 @@ export default function ContactDetailPage() {
     due_date: '',
   })
   const [savingActivity, setSavingActivity] = useState(false)
+  const [activityFilter, setActivityFilter] = useState<'all' | 'email' | 'call' | 'note'>('all')
   const [savingContact, setSavingContact]   = useState(false)
 
   // Company link
@@ -901,6 +902,31 @@ export default function ContactDetailPage() {
         </div>
       </div>
 
+      {/* ── Campaigns ── */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold text-white">Campaigns</h2>
+          <button onClick={openCampaignModal} className="text-xs text-blue-300/50 hover:text-blue-300 transition-colors">+ Add to campaign</button>
+        </div>
+        {enrolledCampaigns.length === 0 ? (
+          <div className="rounded-xl p-4 text-center opacity-40" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <p className="text-xs">Not enrolled in any campaigns</p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {enrolledCampaigns.map(ec => (
+              <div key={ec.campaign_id} className="flex items-center gap-2 rounded-lg px-3 py-2 group" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <Link href={`/campaigns/${ec.campaign_id}`} className="hover:opacity-80 transition-opacity">
+                  <span className="text-xs font-medium" style={{ color: '#d4930e' }}>{ec.name}</span>
+                  <span className="text-[10px] text-blue-300/40 ml-2">{ec.created_at && new Date(ec.created_at).getFullYear() > 2000 ? formatShortDate(ec.created_at) : 'Recently'}</span>
+                </Link>
+                <button onClick={() => handleRemoveFromCampaign(ec.campaign_id, ec.name)} className="text-blue-300/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all" title="Remove"><X size={12} /></button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* ── Two-column layout: Activities + Deals ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -917,6 +943,20 @@ export default function ContactDetailPage() {
             </button>
           </div>
 
+          {/* Activity filter bar */}
+          <div className="flex gap-1">
+            {(['all', 'email', 'call', 'note'] as const).map(f => (
+              <button
+                key={f}
+                onClick={() => setActivityFilter(f)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${activityFilter === f ? 'text-white' : 'text-blue-300/40 hover:text-blue-300'}`}
+                style={activityFilter === f ? { backgroundColor: 'rgba(212,147,14,0.15)', color: '#d4930e' } : undefined}
+              >
+                {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1) + 's'}
+              </button>
+            ))}
+          </div>
+
           {activities.length === 0 ? (
             <div className="rounded-xl p-10 text-center opacity-40"
               style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -924,8 +964,8 @@ export default function ContactDetailPage() {
               <p className="text-sm">No activities yet. Log a call, email, or note to get started.</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {activities.map(activity => {
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+              {activities.filter(a => activityFilter === 'all' || a.type === activityFilter).map(activity => {
                 const meta = getActivityMeta(activity.type)
                 const Icon = meta.icon
                 return (
@@ -1040,51 +1080,6 @@ export default function ContactDetailPage() {
             </div>
           )}
         </div>
-      </div>
-
-      {/* ── Campaigns Section ── */}
-      <div className="mt-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-white">Campaigns</h2>
-          <button
-            onClick={openCampaignModal}
-            className="text-xs text-blue-300/50 hover:text-blue-300 transition-colors"
-          >
-            + Add to campaign
-          </button>
-        </div>
-        {enrolledCampaigns.length === 0 ? (
-          <div className="rounded-xl p-6 text-center opacity-40"
-            style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <Send size={24} className="mx-auto mb-2 opacity-40" />
-            <p className="text-xs">Not enrolled in any campaigns</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {enrolledCampaigns.map(ec => (
-              <div
-                key={ec.campaign_id}
-                className="flex items-center gap-2 rounded-xl p-4 group"
-                style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.07)' }}
-              >
-                <Link
-                  href={`/campaigns/${ec.campaign_id}`}
-                  className="flex-1 min-w-0 hover:opacity-80 transition-opacity"
-                >
-                  <p className="text-sm font-medium" style={{ color: '#d4930e' }}>{ec.name}</p>
-                  <p className="text-xs text-blue-300/40 mt-1">Enrolled {formatShortDate(ec.created_at)}</p>
-                </Link>
-                <button
-                  onClick={() => handleRemoveFromCampaign(ec.campaign_id, ec.name)}
-                  className="text-blue-300/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all shrink-0"
-                  title="Remove from campaign"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* ── Add to Campaign Modal ── */}
