@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Loader2, Users, DollarSign, ClipboardList, AlertTriangle, Clock, RefreshCw } from 'lucide-react'
+import { Loader2, Users, DollarSign, ClipboardList, AlertTriangle, Clock, RefreshCw, X, PhoneCall, MailOpen, StickyNote, CalendarDays, CheckSquare } from 'lucide-react'
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
@@ -42,6 +42,17 @@ export default function SalesManagerPage() {
   const [briefing, setBriefing] = useState('')
   const [briefingLoading, setBriefingLoading] = useState(false)
   const [currentUserId, setCurrentUserId] = useState('')
+
+  // Rep panel
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [panelRep, setPanelRep] = useState<Rep | null>(null)
+  const [panelTab, setPanelTab] = useState<'contacts' | 'pipeline' | 'activity' | 'campaigns'>('contacts')
+  const [panelLoading, setPanelLoading] = useState(false)
+  const [panelContacts, setPanelContacts] = useState<{ id: string; first_name: string; last_name: string; email: string | null; company: string | null }[]>([])
+  const [panelDeals, setPanelDeals] = useState<{ id: string; title: string; value: number | null; stageName: string; stageColor: string; daysInactive: number }[]>([])
+  const [panelActivities, setPanelActivities] = useState<{ id: string; type: string; subject: string; contactName: string; createdAt: string }[]>([])
+  const [panelCampaigns, setPanelCampaigns] = useState<{ id: string; name: string; status: string; enrolled: number }[]>([])
+  const [panelSearch, setPanelSearch] = useState('')
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -80,6 +91,27 @@ export default function SalesManagerPage() {
       setBriefing('Unable to load briefing — click Refresh to try again.')
     }
     setBriefingLoading(false)
+  }
+
+  async function openRepPanel(rep: Rep) {
+    setPanelRep(rep)
+    setPanelTab('contacts')
+    setPanelSearch('')
+    setPanelOpen(true)
+    setPanelLoading(true)
+    try {
+      const res = await fetch('/api/sales-manager/rep-detail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: rep.userId }),
+      })
+      const data = await res.json()
+      setPanelContacts(data.contacts || [])
+      setPanelDeals(data.deals || [])
+      setPanelActivities(data.activities || [])
+      setPanelCampaigns(data.campaigns || [])
+    } catch (err) { console.error('Panel fetch error:', err) }
+    setPanelLoading(false)
   }
 
   useEffect(() => { load() }, [load])
@@ -180,7 +212,7 @@ export default function SalesManagerPage() {
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-blue-300/50">Pipeline: <span className="font-semibold" style={{ color: '#d4930e' }}>${r.pipelineValue.toLocaleString()}</span></span>
-                <Link href={`/sales-manager/reps/${r.userId}`} className="text-xs font-medium px-2 py-1 rounded-lg" style={{ color: '#d4930e', backgroundColor: 'rgba(212,147,14,0.08)' }}>View</Link>
+                <button onClick={() => openRepPanel(r)} className="text-xs font-medium px-2 py-1 rounded-lg" style={{ color: '#d4930e', backgroundColor: 'rgba(212,147,14,0.08)' }}>View</button>
               </div>
             </div>
           )
@@ -248,6 +280,112 @@ export default function SalesManagerPage() {
           </div>
         </div>
       </div>
+
+      {/* ══ Rep Slide-Out Panel ══ */}
+      {panelOpen && (
+        <div className="fixed inset-0 z-50" onClick={() => setPanelOpen(false)}>
+          <div className="absolute inset-0 bg-black/50 transition-opacity" />
+          <div
+            className="absolute top-0 right-0 h-full w-[420px] max-w-full flex flex-col shadow-2xl transition-transform"
+            style={{ backgroundColor: '#0f1c35', borderLeft: '1px solid rgba(212,147,14,0.2)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Panel Header */}
+            <div className="px-5 py-4 border-b border-white/10 flex items-center gap-3 shrink-0">
+              {panelRep && (
+                <>
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}>
+                    {panelRep.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{panelRep.name}</p>
+                    <p className="text-[10px] text-blue-300/40">{panelRep.email}</p>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0" style={{ backgroundColor: badge(panelRep.lastActivity).bg, color: badge(panelRep.lastActivity).c }}>{badge(panelRep.lastActivity).l}</span>
+                </>
+              )}
+              <button onClick={() => setPanelOpen(false)} className="text-blue-300/40 hover:text-white transition-colors shrink-0"><X className="w-5 h-5" /></button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-white/10 shrink-0">
+              {(['contacts', 'pipeline', 'activity', 'campaigns'] as const).map(t => (
+                <button key={t} onClick={() => setPanelTab(t)} className={`flex-1 py-2.5 text-xs font-medium transition-colors ${panelTab === t ? 'border-b-2' : 'text-blue-300/40 hover:text-blue-300'}`} style={panelTab === t ? { color: '#d4930e', borderColor: '#d4930e' } : undefined}>
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            {/* Panel Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {panelLoading ? (
+                <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" style={{ color: '#d4930e' }} /></div>
+              ) : panelTab === 'contacts' ? (
+                <div>
+                  <input type="text" value={panelSearch} onChange={e => setPanelSearch(e.target.value)} placeholder="Search contacts..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-blue-300/30 mb-3 focus:outline-none focus:ring-2 focus:ring-yellow-500/50" />
+                  <p className="text-[10px] text-blue-300/40 mb-2">{panelContacts.length} contacts</p>
+                  <div className="space-y-1">
+                    {panelContacts.filter(c => { if (!panelSearch) return true; const q = panelSearch.toLowerCase(); return `${c.first_name} ${c.last_name}`.toLowerCase().includes(q) || (c.company || '').toLowerCase().includes(q) || (c.email || '').toLowerCase().includes(q) }).map(c => (
+                      <Link key={c.id} href={`/contacts/${c.id}`} className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/5 transition-colors">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-white truncate">{c.first_name} {c.last_name}</p>
+                          <p className="text-[10px] text-blue-300/40 truncate">{[c.company, c.email].filter(Boolean).join(' · ')}</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : panelTab === 'pipeline' ? (
+                <div>
+                  <p className="text-xs text-blue-300/50 mb-3">Total: <span className="font-semibold" style={{ color: '#d4930e' }}>${panelDeals.reduce((s, d) => s + (d.value || 0), 0).toLocaleString()}</span> · {panelDeals.length} deals</p>
+                  <div className="space-y-2">
+                    {panelDeals.map(d => (
+                      <Link key={d.id} href={`/pipeline/${d.id}`} className="block px-3 py-2 rounded-lg hover:bg-white/5 transition-colors" style={{ backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-medium text-white truncate">{d.title}</p>
+                          {d.value != null && d.value > 0 && <span className="text-xs font-semibold shrink-0" style={{ color: '#d4930e' }}>${d.value.toLocaleString()}</span>}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${d.stageColor}22`, color: d.stageColor }}>{d.stageName}</span>
+                          {d.daysInactive <= 365 && <span className={`text-[10px] ${d.daysInactive >= 7 ? 'text-red-400' : 'text-blue-300/40'}`}>{d.daysInactive}d inactive</span>}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : panelTab === 'activity' ? (
+                <div className="space-y-2">
+                  {panelActivities.length === 0 ? <p className="text-xs text-blue-300/40 text-center py-8">No recent activity</p> : panelActivities.map(a => {
+                    const icons: Record<string, typeof PhoneCall> = { call: PhoneCall, email: MailOpen, note: StickyNote, meeting: CalendarDays, task: CheckSquare }
+                    const ActIcon = icons[a.type] || StickyNote
+                    return (
+                      <div key={a.id} className="flex items-start gap-3 px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                        <ActIcon className="w-3.5 h-3.5 mt-0.5 text-blue-300/30 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-white truncate">{a.subject}</p>
+                          <p className="text-[10px] text-blue-300/40">{a.contactName ? a.contactName + ' · ' : ''}{timeAgo(a.createdAt)}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {panelCampaigns.length === 0 ? <p className="text-xs text-blue-300/40 text-center py-8">No campaigns</p> : panelCampaigns.map(c => (
+                    <Link key={c.id} href={`/campaigns/${c.id}`} className="block px-3 py-2 rounded-lg hover:bg-white/5 transition-colors" style={{ backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-medium text-white truncate">{c.name}</p>
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${c.status === 'active' ? 'text-emerald-400 bg-emerald-500/10' : c.status === 'paused' ? 'text-yellow-400 bg-yellow-500/10' : 'text-blue-300/40 bg-white/5'}`}>{c.status}</span>
+                      </div>
+                      <p className="text-[10px] text-blue-300/40 mt-0.5">{c.enrolled} contacts enrolled</p>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
