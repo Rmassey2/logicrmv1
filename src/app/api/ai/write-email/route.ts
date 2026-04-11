@@ -16,7 +16,7 @@ Touch 3: Social proof story
 Touch 4: The "one lane" offer
 Touch 5: Market insight / rate trends
 Touch 6: Case study or result
-Touch 7: Final email — last touch, leave the door open. Do NOT say "closing your file" or any corporate phrase. Use natural language like "I'll step back after this — but we'll be here when the freight gets complicated." End with Maco's tagline: "We don't book loads we can't cover. All 48 states."
+Touch 7: Graceful goodbye email. Warm, professional, no pressure. Appreciate them reading your emails, say you'll circle back when timing is better, wish them well. Do NOT say "closing your file", "breaking up", or anything negative. Example: "I appreciate you taking the time to read my emails. I'll circle back in a few months — timing is everything in freight. Wishing you smooth shipping in the meantime." End with Maco's tagline: "We don't book loads we can't cover. All 48 states."
 
 Return ONLY valid JSON with this structure:
 {"subject": "subject line here", "body": "email body here"}

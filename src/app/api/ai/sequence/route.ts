@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
   try {
-    const { segment, contactTitle, painPoint, companyName, senderName, senderCompany, tone, toneDescription } = await req.json()
+    const { segment, contactTitle, painPoint, companyName, senderName, senderCompany, tone, toneDescription, cadence } = await req.json()
+
+    const CADENCE_DAYS: Record<string, number[]> = {
+      conservative: [1, 4, 9, 16, 26, 40, 61],
+      standard: [1, 3, 5, 8, 12, 16, 21],
+      aggressive: [1, 2, 4, 7, 12, 19, 29],
+    }
+    const days = CADENCE_DAYS[cadence || 'standard'] || CADENCE_DAYS.standard
 
     if (!segment || !contactTitle || !painPoint) {
       return NextResponse.json({ error: 'segment, contactTitle, and painPoint are required' }, { status: 400 })
@@ -40,13 +47,13 @@ You must output valid JSON only — no markdown, no code fences, no explanation.
 ]
 
 The 7-touch cadence:
-Touch 1 (Day 1): Quick question / pattern interrupt — ask who handles freight, reference their pain point
-Touch 2 (Day 3): Pain point validation — show you understand their specific problem
-Touch 3 (Day 5): Social proof story — mention a similar company you helped (make it believable for freight)
-Touch 4 (Day 8): The "one lane" offer — ask for just one lane to prove yourself
-Touch 5 (Day 12): Market insight / rate trends — share a freight market observation relevant to their segment
-Touch 6 (Day 16): Case study or result — specific numbers (e.g. "saved 18% on their Memphis to Dallas lane")
-Touch 7 (Day 21): Final email — last touch, leave the door open naturally. Do NOT say "closing your file" or any corporate-sounding phrase. Use natural, human language like "I'll stop showing up in your inbox after this one" or "Last one from me — promise" or "Timing isn't always right — no hard feelings." Always end this email with Maco's tagline naturally woven in: "We don't book loads we can't cover. All 48 states." Never sound corporate, never say closing, filing, or archiving anything.`
+Touch 1 (Day ${days[0]}): Quick question / pattern interrupt — ask who handles freight, reference their pain point
+Touch 2 (Day ${days[1]}): Pain point validation — show you understand their specific problem
+Touch 3 (Day ${days[2]}): Social proof story — mention a similar company you helped (make it believable for freight)
+Touch 4 (Day ${days[3]}): The "one lane" offer — ask for just one lane to prove yourself
+Touch 5 (Day ${days[4]}): Market insight / rate trends — share a freight market observation relevant to their segment
+Touch 6 (Day ${days[5]}): Case study or result — specific numbers (e.g. "saved 18% on their Memphis to Dallas lane")
+Touch 7 (Day ${days[6]}): Graceful goodbye email. Tone: warm, professional, no pressure. Tell them you appreciate them reading your emails, you'll reach out again down the road when the timing might be better, and wish them well. Do NOT say "closing your file", "breaking up", or anything negative. Leave the door wide open. Example tone: "I appreciate you taking the time to read my emails. I'll circle back in a few months — timing is everything in freight. Wishing you smooth shipping in the meantime." Always end with Maco's tagline naturally woven in: "We don't book loads we can't cover. All 48 states."`
 
     const userPrompt = `Write a 7-touch cold email sequence for:
 

@@ -101,6 +101,7 @@ export default function AiSequencePage() {
   const [senderCompany, setSenderCompany] = useState('')
   const [tone, setTone] = useState<string>(TONES[0])
   const [customTone, setCustomTone] = useState('')
+  const [cadence, setCadence] = useState<'standard' | 'conservative' | 'aggressive'>('standard')
 
   // Output
   const [generatedTone, setGeneratedTone] = useState('')
@@ -187,6 +188,7 @@ export default function AiSequencePage() {
           senderCompany: senderCompany.trim(),
           tone: effectiveTone,
           toneDescription: toneDesc,
+          cadence,
         }),
       })
 
@@ -456,6 +458,29 @@ export default function AiSequencePage() {
               onChange={e => setSenderCompany(e.target.value)}
               className={inputClass}
             />
+          </div>
+        </div>
+
+        {/* Days Between Emails */}
+        <div>
+          <label className={labelClass}>Days Between Emails</label>
+          <div className="grid grid-cols-3 gap-3">
+            {([
+              { id: 'conservative' as const, label: 'Conservative', desc: 'Longer gaps (3-21 days)', delays: '0, 3, 5, 7, 10, 14, 21' },
+              { id: 'standard' as const, label: 'Standard', desc: 'Balanced (2-5 days)', delays: '0, 2, 2, 3, 4, 4, 5' },
+              { id: 'aggressive' as const, label: 'Aggressive', desc: 'Shorter gaps (1-10 days)', delays: '0, 1, 2, 3, 5, 7, 10' },
+            ]).map(opt => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setCadence(opt.id)}
+                className={`text-left rounded-lg p-3 border transition-colors ${cadence === opt.id ? 'border-[#d4930e] bg-[#d4930e]/10' : 'border-white/10 bg-white/[0.02] hover:border-white/20'}`}
+              >
+                <p className={`text-xs font-semibold ${cadence === opt.id ? 'text-[#d4930e]' : 'text-white'}`}>{opt.label}</p>
+                <p className="text-[10px] text-blue-300/40 mt-0.5">{opt.desc}</p>
+                <p className="text-[9px] text-blue-300/30 mt-1 font-mono">{opt.delays}</p>
+              </button>
+            ))}
           </div>
         </div>
 
