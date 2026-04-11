@@ -100,6 +100,7 @@ export default function AiSequencePage() {
   const [senderName, setSenderName] = useState('')
   const [senderCompany, setSenderCompany] = useState('')
   const [tone, setTone] = useState<string>(TONES[0])
+  const [targetTier, setTargetTier] = useState('Medium')
   const [customTone, setCustomTone] = useState('')
   const [cadence, setCadence] = useState<'standard' | 'conservative' | 'aggressive'>('standard')
 
@@ -189,6 +190,7 @@ export default function AiSequencePage() {
           tone: effectiveTone,
           toneDescription: toneDesc,
           cadence,
+          targetTier,
         }),
       })
 
@@ -417,6 +419,25 @@ export default function AiSequencePage() {
           {tone !== 'Custom' && TONE_DESCRIPTIONS[tone] && (
             <p className="text-blue-300/40 text-xs mt-1.5">{TONE_DESCRIPTIONS[tone]}</p>
           )}
+        </div>
+
+        {/* Target Account Tier */}
+        <div>
+          <label className={labelClass}>Target Account Tier</label>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { id: 'Small', desc: 'Casual, low pressure' },
+              { id: 'Medium', desc: 'Professional, reliability' },
+              { id: 'Large', desc: 'Consultative, capacity' },
+              { id: 'XL', desc: 'Enterprise, strategic' },
+            ].map(t => (
+              <button key={t.id} type="button" onClick={() => setTargetTier(t.id)}
+                className={`text-left rounded-lg p-2.5 border transition-colors ${targetTier === t.id ? 'border-[#d4930e] bg-[#d4930e]/10' : 'border-white/10 bg-white/[0.02] hover:border-white/20'}`}>
+                <p className={`text-xs font-semibold ${targetTier === t.id ? 'text-[#d4930e]' : 'text-white'}`}>{t.id}</p>
+                <p className="text-[9px] text-blue-300/40 mt-0.5">{t.desc}</p>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div>

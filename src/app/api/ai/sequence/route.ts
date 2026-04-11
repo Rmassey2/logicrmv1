@@ -2,7 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
   try {
-    const { segment, contactTitle, painPoint, companyName, senderName, senderCompany, tone, toneDescription, cadence } = await req.json()
+    const { segment, contactTitle, painPoint, companyName, senderName, senderCompany, tone, toneDescription, cadence, targetTier } = await req.json()
+
+    const TIER_INSTRUCTIONS: Record<string, string> = {
+      Small: 'Write for a small shipper — casual and friendly, low pressure, quick value prop. Use "one load, no commitment" angle. Keep it short and conversational.',
+      Medium: 'Write for a medium shipper — professional tone, reliability focused, backup capacity angle. "We specialize in covering your overflow" messaging.',
+      Large: 'Write for a large shipper — consultative tone, capacity program focused. "Dedicated backup carrier relationship" positioning. Show freight industry expertise.',
+      XL: 'Write for an enterprise/XL shipper — strategic partnership language, formal but not stiff. "We work with your logistics team to build a reliable carrier program" approach.',
+    }
+    const tierInstruction = TIER_INSTRUCTIONS[targetTier || 'Medium'] || TIER_INSTRUCTIONS.Medium
 
     const CADENCE_DAYS: Record<string, number[]> = {
       conservative: [1, 4, 9, 16, 26, 40, 61],
@@ -34,6 +42,7 @@ Rules:
 - In the email BODY only (not subject), include merge tags {{first_name}} and {{company}} where appropriate
 - CRITICAL: Never mention the segment name or industry label in the email copy. Write naturally as if speaking directly to one person. Use "you", "your team", "your freight" — never say "manufacturers", "distributors", "retailers", or any industry category name. The segment only influences which pain points and context you use, it must never appear in the actual email text.
 ${tone ? `\nWrite all emails in this tone: ${tone}. ${toneDescription}. The tone should feel natural and human — never robotic or templated. Each email should sound like it was written by the same person but adapted to the context of that touch.` : ''}
+\n${tierInstruction}
 
 You must output valid JSON only — no markdown, no code fences, no explanation. Return an array of exactly 7 objects with this structure:
 [

@@ -50,6 +50,7 @@ interface Lead {
     first_name: string | null
     last_name: string | null
     company: string | null
+    shipper_tier: string | null
   }
 }
 
@@ -449,6 +450,7 @@ export default function PipelinePage() {
   const [filterValue, setFilterValue] = useState('')
   const [sortBy, setSortBy] = useState('newest')
   const [filterActivity, setFilterActivity] = useState('')
+  const [filterTier, setFilterTier] = useState('')
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -531,7 +533,7 @@ export default function PipelinePage() {
       const [leadsRes, activitiesRes] = await Promise.all([
         supabase
           .from('leads')
-          .select('id, title, stage_id, value, contact_id, created_at, contact:contacts(first_name, last_name, company)')
+          .select('id, title, stage_id, value, contact_id, created_at, contact:contacts(first_name, last_name, company, shipper_tier)')
           .eq('user_id', user.id),
         supabase
           .from('activities')
@@ -663,7 +665,7 @@ export default function PipelinePage() {
 
   // ── Filter & sort logic ─────────────────────────────────────────────────
 
-  const hasFilters = search || filterValue || sortBy !== 'newest' || filterActivity || filterRep
+  const hasFilters = search || filterValue || sortBy !== 'newest' || filterActivity || filterRep || filterTier
 
   function clearFilters() {
     setSearch('')
@@ -671,6 +673,7 @@ export default function PipelinePage() {
     setSortBy('newest')
     setFilterActivity('')
     setFilterRep('')
+    setFilterTier('')
   }
 
   const filteredLeads = leads.filter(l => {
@@ -693,6 +696,12 @@ export default function PipelinePage() {
       const days = parseInt(filterActivity)
       const cutoff = Date.now() - days * 86400000
       if (l.last_activity_at && new Date(l.last_activity_at).getTime() > cutoff) return false
+    }
+    // Tier filter
+    if (filterTier) {
+      const tier = l.contact?.shipper_tier || ''
+      if (filterTier === 'none' && tier) return false
+      if (filterTier !== 'none' && tier !== filterTier) return false
     }
     return true
   })
@@ -778,6 +787,14 @@ export default function PipelinePage() {
           <option value="7" className="bg-[#0f1c35]">No activity 7d</option>
           <option value="14" className="bg-[#0f1c35]">No activity 14d</option>
           <option value="30" className="bg-[#0f1c35]">No activity 30d</option>
+        </select>
+        <select value={filterTier} onChange={e => setFilterTier(e.target.value)} className={selectClass}>
+          <option value="" className="bg-[#0f1c35]">All Tiers</option>
+          <option value="Small" className="bg-[#0f1c35]">Small</option>
+          <option value="Medium" className="bg-[#0f1c35]">Medium</option>
+          <option value="Large" className="bg-[#0f1c35]">Large</option>
+          <option value="XL" className="bg-[#0f1c35]">XL</option>
+          <option value="none" className="bg-[#0f1c35]">Not Set</option>
         </select>
         {isAdmin && orgMembers.length > 0 && (
           <select value={filterRep} onChange={e => setFilterRep(e.target.value)} className={selectClass}>
