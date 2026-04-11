@@ -96,25 +96,38 @@ export async function GET(req: NextRequest) {
     console.log('TOKEN EXCHANGE SUCCESS — has access_token:', !!tokenData.access_token, 'has refresh_token:', !!tokenData.refresh_token, 'expires_in:', tokenData.expires_in)
 
     // Get user profile from Graph API
-    const graphRes = await fetch('https://graph.microsoft.com/v1.0/me', {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    const accessToken = String(tokenData.access_token)
+    const graphRes = await fetch('https://graph.microsoft.com/v1.0/me?$select=displayName,mail,userPrincipalName', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
     })
 
     const graphText = await graphRes.text()
     console.log('GRAPH RESPONSE STATUS:', graphRes.status)
-    console.log('GRAPH RESPONSE BODY:', graphText.slice(0, 500))
+    console.log('GRAPH RESPONSE BODY:', graphText.slice(0, 1000))
 
-    let profile: Record<string, unknown>
-    try {
-      profile = JSON.parse(graphText)
-    } catch {
-      console.error('GRAPH RESPONSE NOT JSON')
-      profile = {}
+    let profile: Record<string, unknown> = {}
+    try { profile = JSON.parse(graphText) } catch (graphParseErr) { console.error('GRAPH RESPONSE NOT JSON', graphParseErr) }
+
+    // Extract email — multiple fallbacks
+    let email = ''
+    if (profile.mail) email = String(profile.mail)
+    else if (profile.userPrincipalName) email = String(profile.userPrincipalName)
+
+    // Fallback: decode id_token for email
+    if (!email && tokenData.id_token) {
+      try {
+        const payload = String(tokenData.id_token).split('.')[1]
+        const decoded = JSON.parse(Buffer.from(payload, 'base64').toString())
+        email = decoded.email || decoded.preferred_username || decoded.upn || ''
+        console.log('ID_TOKEN decoded email:', email)
+      } catch (idTokenErr) { console.error('ID_TOKEN decode failed', idTokenErr) }
     }
 
-    const email = (profile.mail || profile.userPrincipalName || '') as string
-    const displayName = (profile.displayName || '') as string
-    console.log('PROFILE:', { email, displayName })
+    const displayName = profile.displayName ? String(profile.displayName) : ''
+    console.log('FINAL PROFILE:', { email, displayName, graphStatus: graphRes.status })
 
     // Save to Supabase
     console.log('SAVING TO DB for user:', userId)

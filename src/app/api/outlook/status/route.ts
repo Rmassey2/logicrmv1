@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ connected: false, email: '', error: error.message })
 
     const row = data?.[0]
-    return NextResponse.json({ connected: !!row?.email, email: row?.email || '' })
+    return NextResponse.json({ connected: !!row, email: row?.email || '' })
   } catch (err) {
     console.error('[outlook/status] Error:', err)
     return NextResponse.json({ connected: false, email: '' })
