@@ -44,6 +44,12 @@ interface Lead {
   stage_id: string
   contact_id: string | null
   notes: string | null
+  potential_revenue: string | null
+  loads_per_month: number | null
+  equipment_type: string | null
+  lanes_count: number | null
+  bid_status: string | null
+  bid_due_date: string | null
   created_at: string
 }
 
@@ -129,6 +135,12 @@ export default function DealDetailPage() {
   const [editStageId, setEditStageId] = useState('')
   const [editContactId, setEditContactId] = useState('')
   const [editNotes, setEditNotes] = useState('')
+  const [editPotentialRevenue, setEditPotentialRevenue] = useState('')
+  const [editLoadsPerMonth, setEditLoadsPerMonth] = useState('')
+  const [editEquipmentType, setEditEquipmentType] = useState('')
+  const [editLanesCount, setEditLanesCount] = useState('')
+  const [editBidStatus, setEditBidStatus] = useState('')
+  const [editBidDueDate, setEditBidDueDate] = useState('')
   const [savingDeal, setSavingDeal] = useState(false)
 
   // Activity modal
@@ -173,6 +185,12 @@ export default function DealDetailPage() {
       setEditStageId(deal.stage_id)
       setEditContactId(deal.contact_id ?? '')
       setEditNotes(deal.notes ?? '')
+      setEditPotentialRevenue(deal.potential_revenue ?? '')
+      setEditLoadsPerMonth(deal.loads_per_month?.toString() ?? '')
+      setEditEquipmentType(deal.equipment_type ?? '')
+      setEditLanesCount(deal.lanes_count?.toString() ?? '')
+      setEditBidStatus(deal.bid_status ?? '')
+      setEditBidDueDate(deal.bid_due_date ?? '')
 
       setStages(stagesRes.data ?? [])
       setContacts(contactsRes.data ?? [])
@@ -201,6 +219,12 @@ export default function DealDetailPage() {
       stage_id: editStageId,
       contact_id: editContactId || null,
       notes: editNotes.trim() || null,
+      potential_revenue: editPotentialRevenue || null,
+      loads_per_month: editLoadsPerMonth ? parseInt(editLoadsPerMonth) : null,
+      equipment_type: editEquipmentType || null,
+      lanes_count: editLanesCount ? parseInt(editLanesCount) : null,
+      bid_status: editBidStatus || null,
+      bid_due_date: editBidDueDate || null,
     }
 
     const { error } = await supabase.from('leads').update(updates).eq('id', lead.id)
@@ -370,14 +394,57 @@ export default function DealDetailPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className={labelClass}>Value ($)</label>
-                  <input type="number" placeholder="0" min="0" step="100" value={editValue} onChange={e => setEditValue(e.target.value)} className={inputClass} />
-                </div>
-                <div>
                   <label className={labelClass}>Stage</label>
                   <select value={editStageId} onChange={e => setEditStageId(e.target.value)} className={inputClass}>
                     {stages.map(s => (<option key={s.id} value={s.id} className="bg-[#0f1c35]">{s.name}</option>))}
                   </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Potential Revenue</label>
+                  <select value={editPotentialRevenue} onChange={e => setEditPotentialRevenue(e.target.value)} className={inputClass}>
+                    <option value="" className="bg-[#0f1c35]">Not set</option>
+                    <option value="Under $10K/yr" className="bg-[#0f1c35]">Under $10K/yr</option>
+                    <option value="$10K-$50K/yr" className="bg-[#0f1c35]">$10K-$50K/yr</option>
+                    <option value="$50K-$200K/yr" className="bg-[#0f1c35]">$50K-$200K/yr</option>
+                    <option value="$200K-$500K/yr" className="bg-[#0f1c35]">$200K-$500K/yr</option>
+                    <option value="$500K+/yr" className="bg-[#0f1c35]">$500K+/yr</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Est. Loads/Month</label>
+                  <input type="number" placeholder="e.g. 25" min="0" value={editLoadsPerMonth} onChange={e => setEditLoadsPerMonth(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Equipment Type</label>
+                  <select value={editEquipmentType} onChange={e => setEditEquipmentType(e.target.value)} className={inputClass}>
+                    <option value="" className="bg-[#0f1c35]">Not set</option>
+                    <option value="Dry Van" className="bg-[#0f1c35]">Dry Van</option>
+                    <option value="Reefer" className="bg-[#0f1c35]">Reefer</option>
+                    <option value="Flatbed" className="bg-[#0f1c35]">Flatbed</option>
+                    <option value="Step Deck" className="bg-[#0f1c35]">Step Deck</option>
+                    <option value="LTL" className="bg-[#0f1c35]">LTL</option>
+                    <option value="Intermodal" className="bg-[#0f1c35]">Intermodal</option>
+                    <option value="Tanker" className="bg-[#0f1c35]">Tanker</option>
+                    <option value="Mixed" className="bg-[#0f1c35]">Mixed</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Lanes Being Bid</label>
+                  <input type="number" placeholder="e.g. 3" min="0" value={editLanesCount} onChange={e => setEditLanesCount(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Bid Status</label>
+                  <select value={editBidStatus} onChange={e => setEditBidStatus(e.target.value)} className={inputClass}>
+                    <option value="" className="bg-[#0f1c35]">Not set</option>
+                    <option value="Quoting" className="bg-[#0f1c35]">Quoting</option>
+                    <option value="Submitted" className="bg-[#0f1c35]">Submitted</option>
+                    <option value="Awarded" className="bg-[#0f1c35]">Awarded</option>
+                    <option value="Lost" className="bg-[#0f1c35]">Lost</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Bid Due Date</label>
+                  <input type="date" value={editBidDueDate} onChange={e => setEditBidDueDate(e.target.value)} className={inputClass} />
                 </div>
               </div>
               <div>

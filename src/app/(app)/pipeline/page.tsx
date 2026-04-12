@@ -46,6 +46,9 @@ interface Lead {
   user_id?: string
   last_activity_at?: string | null
   rep_name?: string
+  potential_revenue?: string | null
+  loads_per_month?: number | null
+  equipment_type?: string | null
   contact?: {
     first_name: string | null
     last_name: string | null
@@ -169,15 +172,15 @@ function DealRow({
         <p className="text-xs text-blue-300/50 truncate">{lead.contact?.company || '—'}</p>
       </div>
 
-      {/* Value */}
-      <div className="w-24 shrink-0 text-right">
-        {lead.value != null && lead.value > 0 ? (
-          <span className="text-xs font-semibold" style={{ color: '#d4930e' }}>
-            ${lead.value.toLocaleString()}
-          </span>
-        ) : (
-          <span className="text-xs text-blue-300/30">—</span>
-        )}
+      {/* Revenue / Equipment */}
+      <div className="w-28 shrink-0 text-right">
+        {lead.potential_revenue ? (
+          <span className="text-[10px] font-semibold" style={{ color: '#d4930e' }}>{lead.potential_revenue}</span>
+        ) : lead.value != null && lead.value > 0 ? (
+          <span className="text-xs font-semibold" style={{ color: '#d4930e' }}>${lead.value.toLocaleString()}</span>
+        ) : null}
+        {lead.equipment_type && <p className="text-[9px] text-blue-300/40">{lead.equipment_type}</p>}
+        {lead.loads_per_month && <p className="text-[9px] text-blue-300/30">~{lead.loads_per_month} loads/mo</p>}
       </div>
 
       {/* Activity */}
@@ -327,11 +330,15 @@ function AddDealModal({
   stageName: string
   contacts: ContactOption[]
   onClose: () => void
-  onSave: (deal: { title: string; contact_id: string | null; value: number | null; stage_id: string }) => void
+  onSave: (deal: { title: string; contact_id: string | null; value: number | null; stage_id: string; potential_revenue?: string; loads_per_month?: number; equipment_type?: string; bid_due_date?: string }) => void
 }) {
   const [title, setTitle] = useState('')
   const [contactId, setContactId] = useState('')
-  const [value, setValue] = useState('')
+  const [potentialRevenue, setPotentialRevenue] = useState('')
+  const [loadsPerMonth, setLoadsPerMonth] = useState('')
+  const [equipmentType, setEquipmentType] = useState('')
+  const [bidDueDate, setBidDueDate] = useState('')
+  // value removed — using potentialRevenue instead
   const [saving, setSaving] = useState(false)
 
   async function handleSubmit() {
@@ -340,8 +347,12 @@ function AddDealModal({
     await onSave({
       title: title.trim(),
       contact_id: contactId || null,
-      value: value ? parseFloat(value) : null,
+      value: null,
       stage_id: stageId,
+      potential_revenue: potentialRevenue || undefined,
+      loads_per_month: loadsPerMonth ? parseInt(loadsPerMonth) : undefined,
+      equipment_type: equipmentType || undefined,
+      bid_due_date: bidDueDate || undefined,
     })
     setSaving(false)
   }
@@ -396,16 +407,37 @@ function AddDealModal({
             </select>
           </div>
           <div>
-            <label className={labelClass}>Monthly Value ($)</label>
-            <input
-              type="number"
-              placeholder="5000"
-              min="0"
-              step="100"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              className={inputClass}
-            />
+            <label className={labelClass}>Potential Revenue</label>
+            <select value={potentialRevenue} onChange={e => setPotentialRevenue(e.target.value)} className={inputClass}>
+              <option value="" className="bg-[#0f1c35]">Not set</option>
+              <option value="Under $10K/yr" className="bg-[#0f1c35]">Under $10K/yr</option>
+              <option value="$10K-$50K/yr" className="bg-[#0f1c35]">$10K-$50K/yr</option>
+              <option value="$50K-$200K/yr" className="bg-[#0f1c35]">$50K-$200K/yr</option>
+              <option value="$200K-$500K/yr" className="bg-[#0f1c35]">$200K-$500K/yr</option>
+              <option value="$500K+/yr" className="bg-[#0f1c35]">$500K+/yr</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Est. Loads/Month</label>
+            <input type="number" placeholder="e.g. 25" min="0" value={loadsPerMonth} onChange={e => setLoadsPerMonth(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Equipment Type</label>
+            <select value={equipmentType} onChange={e => setEquipmentType(e.target.value)} className={inputClass}>
+              <option value="" className="bg-[#0f1c35]">Not set</option>
+              <option value="Dry Van" className="bg-[#0f1c35]">Dry Van</option>
+              <option value="Reefer" className="bg-[#0f1c35]">Reefer</option>
+              <option value="Flatbed" className="bg-[#0f1c35]">Flatbed</option>
+              <option value="Step Deck" className="bg-[#0f1c35]">Step Deck</option>
+              <option value="LTL" className="bg-[#0f1c35]">LTL</option>
+              <option value="Intermodal" className="bg-[#0f1c35]">Intermodal</option>
+              <option value="Tanker" className="bg-[#0f1c35]">Tanker</option>
+              <option value="Mixed" className="bg-[#0f1c35]">Mixed</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Bid Due Date</label>
+            <input type="date" value={bidDueDate} onChange={e => setBidDueDate(e.target.value)} className={inputClass} />
           </div>
         </div>
 
@@ -522,6 +554,9 @@ export default function PipelinePage() {
           user_id: l.user_id as string,
           last_activity_at: l.contact_id ? activityMap.get(l.contact_id as string) ?? null : null,
           rep_name: repNameMap.get(l.user_id as string) ?? undefined,
+          potential_revenue: l.potential_revenue as string | null ?? undefined,
+          loads_per_month: l.loads_per_month as number | null ?? undefined,
+          equipment_type: l.equipment_type as string | null ?? undefined,
           contact: l.contact
             ? Array.isArray(l.contact)
               ? (l.contact[0] as Lead['contact'])
@@ -533,7 +568,7 @@ export default function PipelinePage() {
       const [leadsRes, activitiesRes] = await Promise.all([
         supabase
           .from('leads')
-          .select('id, title, stage_id, value, contact_id, created_at, contact:contacts(first_name, last_name, company, shipper_tier)')
+          .select('id, title, stage_id, value, contact_id, created_at, potential_revenue, loads_per_month, equipment_type, contact:contacts(first_name, last_name, company, shipper_tier)')
           .eq('user_id', user.id),
         supabase
           .from('activities')
@@ -559,6 +594,9 @@ export default function PipelinePage() {
           contact_id: l.contact_id as string | null,
           created_at: l.created_at as string,
           last_activity_at: l.contact_id ? activityMap.get(l.contact_id as string) ?? null : null,
+          potential_revenue: l.potential_revenue as string | null ?? undefined,
+          loads_per_month: l.loads_per_month as number | null ?? undefined,
+          equipment_type: l.equipment_type as string | null ?? undefined,
           contact: l.contact
             ? Array.isArray(l.contact)
               ? (l.contact[0] as Lead['contact'])
@@ -639,7 +677,7 @@ export default function PipelinePage() {
 
   // ── Add deal ─────────────────────────────────────────────────────────────
 
-  async function handleAddDeal(deal: { title: string; contact_id: string | null; value: number | null; stage_id: string }) {
+  async function handleAddDeal(deal: { title: string; contact_id: string | null; value: number | null; stage_id: string; potential_revenue?: string; loads_per_month?: number; equipment_type?: string; bid_due_date?: string }) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
@@ -649,6 +687,10 @@ export default function PipelinePage() {
       stage_id: deal.stage_id,
       contact_id: deal.contact_id,
       value: deal.value,
+      potential_revenue: deal.potential_revenue || null,
+      loads_per_month: deal.loads_per_month || null,
+      equipment_type: deal.equipment_type || null,
+      bid_due_date: deal.bid_due_date || null,
     })
 
     if (error) {
