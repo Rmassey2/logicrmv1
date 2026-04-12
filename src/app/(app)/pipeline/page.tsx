@@ -174,11 +174,9 @@ function DealRow({
 
       {/* Revenue / Equipment */}
       <div className="w-28 shrink-0 text-right">
-        {lead.potential_revenue ? (
+        {lead.potential_revenue && (
           <span className="text-[10px] font-semibold" style={{ color: '#d4930e' }}>{lead.potential_revenue}</span>
-        ) : lead.value != null && lead.value > 0 ? (
-          <span className="text-xs font-semibold" style={{ color: '#d4930e' }}>${lead.value.toLocaleString()}</span>
-        ) : null}
+        )}
         {lead.equipment_type && <p className="text-[9px] text-blue-300/40">{lead.equipment_type}</p>}
         {lead.loads_per_month && <p className="text-[9px] text-blue-300/30">~{lead.loads_per_month} loads/mo</p>}
       </div>
@@ -243,7 +241,6 @@ function StageAccordion({
   onMoveStage: (leadId: string, stageId: string) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { type: 'stage' } })
-  const stageValue = leads.reduce((sum, l) => sum + (l.value ?? 0), 0)
   const color = getStageColor(stage.name)
 
   return (
@@ -269,11 +266,6 @@ function StageAccordion({
         <span className="text-xs text-blue-300/50">
           {leads.length} deal{leads.length !== 1 && 's'}
         </span>
-        {stageValue > 0 && (
-          <span className="text-xs font-semibold" style={{ color: '#d4930e' }}>
-            ${stageValue.toLocaleString()}
-          </span>
-        )}
         <span
           onClick={e => { e.stopPropagation(); onAddDeal(stage.id) }}
           className="p-1 rounded-lg text-blue-300/30 hover:text-white hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"

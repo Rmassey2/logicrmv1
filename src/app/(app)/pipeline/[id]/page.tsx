@@ -494,6 +494,52 @@ export default function DealDetailPage() {
                   {lead.notes}
                 </div>
               )}
+
+              {/* Deal Details grid — inline edit */}
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-300/40 mb-3">Deal Details</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] text-blue-300/30 mb-1">Potential Revenue</label>
+                    <select value={lead.potential_revenue || ''} onChange={async e => { await supabase.from('leads').update({ potential_revenue: e.target.value || null }).eq('id', lead.id); setLead({ ...lead, potential_revenue: e.target.value || null }); toast.success('Saved') }} className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none">
+                      <option value="" className="bg-[#0f1c35]">Not set</option>
+                      <option value="Under $10K/yr" className="bg-[#0f1c35]">Under $10K/yr</option>
+                      <option value="$10K-$50K/yr" className="bg-[#0f1c35]">$10K-$50K/yr</option>
+                      <option value="$50K-$200K/yr" className="bg-[#0f1c35]">$50K-$200K/yr</option>
+                      <option value="$200K-$500K/yr" className="bg-[#0f1c35]">$200K-$500K/yr</option>
+                      <option value="$500K+/yr" className="bg-[#0f1c35]">$500K+/yr</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-blue-300/30 mb-1">Est. Loads/Month</label>
+                    <input type="number" value={lead.loads_per_month ?? ''} placeholder="e.g. 25" min="0" onChange={async e => { const v = e.target.value ? parseInt(e.target.value) : null; await supabase.from('leads').update({ loads_per_month: v }).eq('id', lead.id); setLead({ ...lead, loads_per_month: v }) }} className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none" onBlur={() => toast.success('Saved')} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-blue-300/30 mb-1">Equipment Type</label>
+                    <select value={lead.equipment_type || ''} onChange={async e => { await supabase.from('leads').update({ equipment_type: e.target.value || null }).eq('id', lead.id); setLead({ ...lead, equipment_type: e.target.value || null }); toast.success('Saved') }} className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none">
+                      <option value="" className="bg-[#0f1c35]">Not set</option>
+                      {['Dry Van','Reefer','Flatbed','Step Deck','LTL','Intermodal','Tanker','Mixed'].map(t => <option key={t} value={t} className="bg-[#0f1c35]">{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-blue-300/30 mb-1">Lanes Being Bid</label>
+                    <input type="number" value={lead.lanes_count ?? ''} placeholder="e.g. 3" min="0" onChange={async e => { const v = e.target.value ? parseInt(e.target.value) : null; await supabase.from('leads').update({ lanes_count: v }).eq('id', lead.id); setLead({ ...lead, lanes_count: v }) }} className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none" onBlur={() => toast.success('Saved')} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-blue-300/30 mb-1">Bid Status</label>
+                    <select value={lead.bid_status || ''} onChange={async e => { await supabase.from('leads').update({ bid_status: e.target.value || null }).eq('id', lead.id); setLead({ ...lead, bid_status: e.target.value || null }); toast.success('Saved') }} className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none">
+                      <option value="" className="bg-[#0f1c35]">Not set</option>
+                      {['Quoting','Submitted','Awarded','Lost'].map(s => <option key={s} value={s} className="bg-[#0f1c35]">{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-blue-300/30 mb-1">Bid Due Date</label>
+                    <input type="date" value={lead.bid_due_date || ''} onChange={async e => { await supabase.from('leads').update({ bid_due_date: e.target.value || null }).eq('id', lead.id); setLead({ ...lead, bid_due_date: e.target.value || null }); toast.success('Saved') }} className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none" />
+                    {lead.bid_due_date && (() => { const d = Math.ceil((new Date(lead.bid_due_date).getTime() - Date.now()) / 86400000); return <p className={`text-[10px] mt-1 ${d <= 7 ? 'text-orange-400' : ''}`} style={d > 7 ? { color: '#d4930e' } : undefined}>Bid due: {new Date(lead.bid_due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{d <= 7 && d >= 0 ? ` (${d}d)` : ''}</p> })()}
+                  </div>
+                </div>
+              </div>
+
               <p className="text-xs text-blue-300/30 mt-3">Created {formatShortDate(lead.created_at)}</p>
             </div>
           )}
