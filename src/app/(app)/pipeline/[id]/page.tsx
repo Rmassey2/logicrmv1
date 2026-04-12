@@ -20,7 +20,6 @@ import {
   CheckSquare,
   Clock,
   Trash2,
-  DollarSign,
   TrendingUp,
   User,
   Sparkles,
@@ -469,11 +468,14 @@ export default function DealDetailPage() {
                     {currentStage.name}
                   </span>
                 )}
-                {lead.value != null && lead.value > 0 && (
-                  <span className="inline-flex items-center gap-1 text-sm font-semibold" style={{ color: '#d4930e' }}>
-                    <DollarSign className="w-4 h-4" />
-                    {lead.value.toLocaleString()}
-                  </span>
+                {lead.potential_revenue && (
+                  <span className="text-sm font-semibold" style={{ color: '#d4930e' }}>{lead.potential_revenue}</span>
+                )}
+                {lead.equipment_type && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-400">{lead.equipment_type}</span>
+                )}
+                {lead.bid_status && (
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${lead.bid_status === 'Awarded' ? 'bg-emerald-500/10 text-emerald-400' : lead.bid_status === 'Lost' ? 'bg-red-500/10 text-red-400' : 'bg-yellow-500/10 text-yellow-400'}`}>{lead.bid_status}</span>
                 )}
               </div>
               {linkedContact && (

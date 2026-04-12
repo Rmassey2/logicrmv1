@@ -19,7 +19,7 @@ import {
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import {
-  Plus, X, DollarSign, TrendingUp, GripVertical, Search, Filter,
+  Plus, X, TrendingUp, GripVertical, Search, Filter,
   ChevronDown, ChevronRight, Clock,
 } from 'lucide-react'
 
@@ -330,13 +330,14 @@ function AddDealModal({
   stageName: string
   contacts: ContactOption[]
   onClose: () => void
-  onSave: (deal: { title: string; contact_id: string | null; value: number | null; stage_id: string; potential_revenue?: string; loads_per_month?: number; equipment_type?: string; bid_due_date?: string }) => void
+  onSave: (deal: { title: string; contact_id: string | null; value: number | null; stage_id: string; potential_revenue?: string; loads_per_month?: number; equipment_type?: string; lanes_count?: number; bid_due_date?: string }) => void
 }) {
   const [title, setTitle] = useState('')
   const [contactId, setContactId] = useState('')
   const [potentialRevenue, setPotentialRevenue] = useState('')
   const [loadsPerMonth, setLoadsPerMonth] = useState('')
   const [equipmentType, setEquipmentType] = useState('')
+  const [lanesCount, setLanesCount] = useState('')
   const [bidDueDate, setBidDueDate] = useState('')
   // value removed — using potentialRevenue instead
   const [saving, setSaving] = useState(false)
@@ -352,6 +353,7 @@ function AddDealModal({
       potential_revenue: potentialRevenue || undefined,
       loads_per_month: loadsPerMonth ? parseInt(loadsPerMonth) : undefined,
       equipment_type: equipmentType || undefined,
+      lanes_count: lanesCount ? parseInt(lanesCount) : undefined,
       bid_due_date: bidDueDate || undefined,
     })
     setSaving(false)
@@ -434,6 +436,10 @@ function AddDealModal({
               <option value="Tanker" className="bg-[#0f1c35]">Tanker</option>
               <option value="Mixed" className="bg-[#0f1c35]">Mixed</option>
             </select>
+          </div>
+          <div>
+            <label className={labelClass}>Lanes Being Bid</label>
+            <input type="number" placeholder="e.g. 3" min="0" value={lanesCount} onChange={e => setLanesCount(e.target.value)} className={inputClass} />
           </div>
           <div>
             <label className={labelClass}>Bid Due Date</label>
@@ -677,7 +683,7 @@ export default function PipelinePage() {
 
   // ── Add deal ─────────────────────────────────────────────────────────────
 
-  async function handleAddDeal(deal: { title: string; contact_id: string | null; value: number | null; stage_id: string; potential_revenue?: string; loads_per_month?: number; equipment_type?: string; bid_due_date?: string }) {
+  async function handleAddDeal(deal: { title: string; contact_id: string | null; value: number | null; stage_id: string; potential_revenue?: string; loads_per_month?: number; equipment_type?: string; lanes_count?: number; bid_due_date?: string }) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
@@ -690,6 +696,7 @@ export default function PipelinePage() {
       potential_revenue: deal.potential_revenue || null,
       loads_per_month: deal.loads_per_month || null,
       equipment_type: deal.equipment_type || null,
+      lanes_count: deal.lanes_count || null,
       bid_due_date: deal.bid_due_date || null,
     })
 
@@ -760,7 +767,7 @@ export default function PipelinePage() {
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   })
 
-  const totalValue = sortedLeads.reduce((sum, l) => sum + (l.value ?? 0), 0)
+  // totalValue removed — using potential_revenue ranges instead
   const totalDeals = sortedLeads.length
   const modalStage = stages.find((s) => s.id === modalStageId)
 
@@ -788,10 +795,6 @@ export default function PipelinePage() {
                 <TrendingUp className="w-4 h-4" />
                 {totalDeals} deal{totalDeals !== 1 && 's'}
                 {totalDeals !== leads.length && <span className="text-blue-300/40"> of {leads.length}</span>}
-              </span>
-              <span className="flex items-center gap-1 text-sm" style={{ color: '#d4930e' }}>
-                <DollarSign className="w-4 h-4" />
-                ${totalValue.toLocaleString()} total value
               </span>
             </div>
           </div>
