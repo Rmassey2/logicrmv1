@@ -65,15 +65,27 @@ export async function POST(req: NextRequest) {
       update[key] = value
     }
 
-    console.log('[settings POST] Updating org:', membership.org_id, update)
+    console.log('[settings POST] Updating org:', membership.org_id, JSON.stringify(update))
 
-    const { error } = await supabase
+    // Filter out any keys that might not exist as columns — only send known safe columns
+    const safeColumns = ['company_name', 'company_phone', 'company_website', 'company_address', 'sending_email', 'name']
+    const safeUpdate: Record<string, string> = {}
+    for (const [k, v] of Object.entries(update)) {
+      if (safeColumns.includes(k)) safeUpdate[k] = v
+    }
+
+    console.log('[settings POST] Safe update:', JSON.stringify(safeUpdate))
+
+    const { data: updateResult, error } = await supabase
       .from('organizations')
-      .update(update)
+      .update(safeUpdate)
       .eq('id', membership.org_id)
+      .select('id')
+
+    console.log('[settings POST] Result:', updateResult, 'Error:', error?.message)
 
     if (error) {
-      console.error('[settings POST] Update failed:', error.message)
+      console.error('[settings POST] Update failed:', error.message, error.details, error.hint)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
