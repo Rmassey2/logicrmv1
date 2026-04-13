@@ -25,13 +25,25 @@ export async function GET(req: NextRequest) {
 
     if (!membership) return NextResponse.json({ company: null })
 
-    const { data: org } = await supabase
+    const res1 = await supabase
       .from('organizations')
       .select('name, company_name, company_phone, company_website, company_address, sending_email')
       .eq('id', membership.org_id)
       .single()
 
-    return NextResponse.json({ company: org })
+    let org = res1.data
+
+    // If sending_email column doesn't exist yet, retry without it
+    if (res1.error && res1.error.message?.includes('sending_email')) {
+      const res2 = await supabase
+        .from('organizations')
+        .select('name, company_name, company_phone, company_website, company_address')
+        .eq('id', membership.org_id)
+        .single()
+      org = res2.data as typeof org
+    }
+
+    return NextResponse.json({ company: org || {} })
   } catch (err) {
     console.error('[settings GET] Error:', err)
     return NextResponse.json({ error: String(err) }, { status: 500 })
@@ -76,13 +88,23 @@ export async function POST(req: NextRequest) {
 
     console.log('[settings POST] Safe update:', JSON.stringify(safeUpdate))
 
-    const { data: updateResult, error } = await supabase
+    let { data: updateResult, error } = await supabase
       .from('organizations')
       .update(safeUpdate)
       .eq('id', membership.org_id)
       .select('id')
 
     console.log('[settings POST] Result:', updateResult, 'Error:', error?.message)
+
+    // If sending_email column doesn't exist, retry without it
+    if (error && error.message?.includes('sending_email')) {
+      console.log('[settings POST] Retrying without sending_email')
+      const { sending_email: _removed, ...withoutSending } = safeUpdate
+      void _removed
+      const retry = await supabase.from('organizations').update(withoutSending).eq('id', membership.org_id).select('id')
+      updateResult = retry.data
+      error = retry.error
+    }
 
     if (error) {
       console.error('[settings POST] Update failed:', error.message, error.details, error.hint)
