@@ -204,8 +204,8 @@ export default function SettingsPage() {
     const compData = await compRes.json()
     if (compData.company) {
       const c = compData.company
-      // Use org name as fallback for company_name
-      if (!c.company_name && c.name) c.company_name = c.name
+      // Use org name as fallback for company_name (handles null AND empty string)
+      if ((!c.company_name || !c.company_name.trim()) && c.name) c.company_name = c.name
       setCompany(prev => ({ ...prev, ...c }))
     }
 
@@ -670,7 +670,7 @@ export default function SettingsPage() {
           <div className="space-y-4">
             <div className="rounded-lg p-4 text-sm leading-relaxed" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
               <p className="text-white font-medium">{displayName || 'Your Name'}</p>
-              <p className="text-blue-300/60">{company.company_name || 'Your Company'}</p>
+              <p className="text-blue-300/60">{company.company_name || orgName || 'Your Company'}</p>
               {company.company_phone && <p className="text-blue-300/50 text-xs">{company.company_phone}</p>}
               <p className="text-blue-300/40 text-xs">{userEmail || 'you@company.com'}</p>
               {company.company_website && <p className="text-blue-300/40 text-xs">{company.company_website}</p>}
@@ -731,7 +731,7 @@ export default function SettingsPage() {
               <label className={labelClass}>Email Signature Preview</label>
               <div className="rounded-lg p-4 text-sm leading-relaxed" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
                 <p className="text-white font-medium">{displayName || 'Your Name'}</p>
-                <p className="text-blue-300/60">{company.company_name || 'Your Company'}</p>
+                <p className="text-blue-300/60">{company.company_name || orgName || 'Your Company'}</p>
                 {company.company_phone && <p className="text-blue-300/50 text-xs">{company.company_phone}</p>}
                 <p className="text-blue-300/40 text-xs">{userEmail || 'you@company.com'}</p>
                 {company.company_website && <p className="text-blue-300/40 text-xs">{company.company_website}</p>}
