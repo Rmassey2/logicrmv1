@@ -40,6 +40,7 @@ export default function SalesManagerPage() {
   const [recent, setRecent] = useState<RecentActivity[]>([])
   const [totals, setTotals] = useState({ reps: 0, contacts: 0, pipelineValue: 0, activitiesThisWeek: 0 })
   const [briefing, setBriefing] = useState('')
+  const [campaignReplies, setCampaignReplies] = useState<{ id: string; contact_name: string; company: string; rep: string; notes: string; created_at: string; contact_id: string }[]>([])
   const [briefingLoading, setBriefingLoading] = useState(false)
   const [currentUserId, setCurrentUserId] = useState('')
 
@@ -94,6 +95,36 @@ export default function SalesManagerPage() {
       const confRes = await fetch('/api/sales-manager/conflicts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.id }) })
       const confData = await confRes.json()
       setConflicts(confData.conflicts || [])
+    } catch { /* ignore */ }
+
+    // Fetch campaign replies
+    try {
+      const { data: replies } = await supabase
+        .from('activities')
+        .select('id, contact_id, user_id, subject, notes, created_at')
+        .like('subject', 'Campaign Reply:%')
+        .eq('source', 'instantly')
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (replies && data.reps) {
+        const repMap = new Map((data.reps as Rep[]).map((r: Rep) => [r.userId, r.name]))
+        // Get contact names
+        const cIds = replies.filter(r => r.contact_id).map(r => r.contact_id)
+        let contactMap = new Map<string, { name: string; company: string }>()
+        if (cIds.length > 0) {
+          const { data: contacts } = await supabase.from('contacts').select('id, first_name, last_name, company').in('id', cIds)
+          contactMap = new Map((contacts || []).map(c => [c.id, { name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), company: c.company || '' }]))
+        }
+        setCampaignReplies(replies.map(r => ({
+          id: r.id,
+          contact_id: r.contact_id || '',
+          contact_name: contactMap.get(r.contact_id)?.name || r.subject?.replace('Campaign Reply: ', '') || 'Unknown',
+          company: contactMap.get(r.contact_id)?.company || '',
+          rep: repMap.get(r.user_id) || 'Unknown',
+          notes: (r.notes || '').slice(0, 100),
+          created_at: r.created_at,
+        })))
+      }
     } catch { /* ignore */ }
 
     setLoading(false)
@@ -324,6 +355,37 @@ export default function SalesManagerPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Campaign Replies ── */}
+      {campaignReplies.length > 0 && (
+        <div className="mt-6 rounded-xl p-4" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(212,147,14,0.2)' }}>
+          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: '#d4930e' }}>🔥 Campaign Replies ({campaignReplies.length})</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-white/10">
+                  <th className="px-3 py-2 text-[10px] font-semibold uppercase text-blue-300/50">Contact</th>
+                  <th className="px-3 py-2 text-[10px] font-semibold uppercase text-blue-300/50">Company</th>
+                  <th className="px-3 py-2 text-[10px] font-semibold uppercase text-blue-300/50">Rep</th>
+                  <th className="px-3 py-2 text-[10px] font-semibold uppercase text-blue-300/50">Reply</th>
+                  <th className="px-3 py-2 text-[10px] font-semibold uppercase text-blue-300/50">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {campaignReplies.map(r => (
+                  <tr key={r.id} className="border-b border-white/5 hover:bg-white/5 cursor-pointer" onClick={() => r.contact_id && router.push(`/contacts/${r.contact_id}`)}>
+                    <td className="px-3 py-2 text-xs font-medium text-white">{r.contact_name}</td>
+                    <td className="px-3 py-2 text-xs text-blue-300/60">{r.company}</td>
+                    <td className="px-3 py-2 text-xs text-blue-300/60">{r.rep}</td>
+                    <td className="px-3 py-2 text-xs text-blue-300/40 max-w-[200px] truncate">{r.notes}</td>
+                    <td className="px-3 py-2 text-xs text-blue-300/40">{timeAgo(r.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ── Account Conflicts ── */}
       {conflicts.length > 0 && (
