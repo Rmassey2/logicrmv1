@@ -299,7 +299,7 @@ export default function AiSequencePage() {
     const sigEmail = user.email || ''
     const sigWebsite = c.company_website || ''
     const sigLines = [sigName, sigCompany, sigPhone, sigEmail, sigWebsite].filter(Boolean)
-    const signature = '\n\n' + sigLines.join('\n')
+    const signature = '\n\n' + sigLines.join('\n') + '\n\n\n'
 
     // Combine all touches into the campaign body with clear separators
     const combinedBody = sequence.map(t =>

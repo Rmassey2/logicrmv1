@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
       const sigEmail = authUser?.user?.email || ''
       const sigLines = [sigName, sigCompany, sigPhone, sigEmail, sigWebsite].filter(Boolean)
       if (sigLines.length > 0) {
-        signature = '\n\n' + sigLines.join('\n')
+        signature = '\n\n' + sigLines.join('\n') + '\n\n\n'
       }
       console.log('[launch] Signature:', signature)
     }
