@@ -391,29 +391,22 @@ export default function SettingsPage() {
     if (!inviteEmail.trim() || !orgId) return
     setInviting(true)
 
-    // Send a magic link invite via Supabase auth
-    const { error: inviteError } = await supabase.auth.signInWithOtp({
-      email: inviteEmail.trim(),
-      options: { shouldCreateUser: true },
-    })
+    const { data: { user } } = await supabase.auth.getUser()
 
-    if (inviteError) {
-      console.error('Invite failed:', inviteError)
-      toast.error(`Invite failed: ${inviteError.message}`)
+    const res = await fetch('/api/team/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: inviteEmail.trim(), org_id: orgId, inviter_id: user?.id }),
+    })
+    const data = await res.json()
+
+    if (!res.ok) {
+      toast.error(data.error || 'Invite failed')
       setInviting(false)
       return
     }
 
-    // Store a pending invite record so the signup flow can match them to this org
-    const { error: inviteRecordError } = await supabase.from('user_settings').upsert(
-      { user_id: orgId, key: `invite:${inviteEmail.trim().toLowerCase()}`, value: 'rep' },
-      { onConflict: 'user_id,key' }
-    )
-    if (inviteRecordError) {
-      console.error('Invite record failed:', inviteRecordError)
-    }
-
-    toast.success(`Invite sent to ${inviteEmail}`)
+    toast.success(data.message || `Invite sent to ${inviteEmail}`)
     setInviteEmail('')
     setInviting(false)
     loadData()
