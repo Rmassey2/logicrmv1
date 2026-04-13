@@ -79,7 +79,7 @@ function GettingStarted({ checklist, userPlan, instantlyKey, setInstantlyKey, sa
     { key: 'hasCampaign', label: 'Build your first campaign', desc: 'Create a 7-touch email sequence with AI', link: '/campaigns/ai-sequence', action: null },
   ]
   if (userPlan === 'team' || userPlan === null) {
-    items.push({ key: 'hasTeamMember', label: 'Invite a team member', desc: 'Add reps to your organization', link: null, action: () => setActiveTab('settings') })
+    items.push({ key: 'hasTeamMember', label: 'Invite a team member', desc: 'Add reps to your organization', link: null, action: () => { setActiveTab('settings'); setTimeout(() => document.getElementById('team-section')?.scrollIntoView({ behavior: 'smooth' }), 100) } })
   }
   const completed = items.filter(i => checklist[i.key as keyof typeof checklist]).length
   const total = items.length
@@ -203,7 +203,10 @@ export default function SettingsPage() {
     const compRes = await fetch(`/api/settings?userId=${user.id}`)
     const compData = await compRes.json()
     if (compData.company) {
-      setCompany(prev => ({ ...prev, ...compData.company }))
+      const c = compData.company
+      // Use org name as fallback for company_name
+      if (!c.company_name && c.name) c.company_name = c.name
+      setCompany(prev => ({ ...prev, ...c }))
     }
 
     // Pipeline stages
@@ -805,7 +808,7 @@ export default function SettingsPage() {
 
         {/* ── Team ───────────────────────────────────────────────────────── */}
         {orgId && (
-          <SectionCard title={`Team — ${orgName}`}>
+          <div id="team-section"><SectionCard title={`Team — ${orgName}`}>
             <div className="space-y-4">
               {/* Members list */}
               <div className="space-y-2">
@@ -874,7 +877,7 @@ export default function SettingsPage() {
                 </div>
               )}
             </div>
-          </SectionCard>
+          </SectionCard></div>
         )}
 
         {/* ── Pipeline Stages ─────────────────────────────────────────────── */}

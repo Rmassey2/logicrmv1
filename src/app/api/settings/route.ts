@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 
     const { data: org } = await supabase
       .from('organizations')
-      .select('company_name, company_phone, company_website, company_address, sending_email')
+      .select('name, company_name, company_phone, company_website, company_address, sending_email')
       .eq('id', membership.org_id)
       .single()
 
