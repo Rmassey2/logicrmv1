@@ -487,9 +487,9 @@ export default function AiSequencePage() {
           <label className={labelClass}>Days Between Emails</label>
           <div className="grid grid-cols-3 gap-3">
             {([
-              { id: 'conservative' as const, label: 'Conservative', desc: 'Longer gaps (3-21 days)', delays: '0, 3, 5, 7, 10, 14, 21' },
-              { id: 'standard' as const, label: 'Standard', desc: 'Balanced (2-5 days)', delays: '0, 2, 2, 3, 4, 4, 5' },
-              { id: 'aggressive' as const, label: 'Aggressive', desc: 'Shorter gaps (1-10 days)', delays: '0, 1, 2, 3, 5, 7, 10' },
+              { id: 'conservative' as const, label: 'Conservative', desc: 'Longer gaps (3-21 days)', delays: '3, 5, 7, 10, 14, 21' },
+              { id: 'standard' as const, label: 'Standard', desc: 'Balanced (2-5 days)', delays: '2, 2, 2, 3, 4, 4, 5' },
+              { id: 'aggressive' as const, label: 'Aggressive', desc: 'Shorter gaps (1-10 days)', delays: '1, 2, 3, 5, 7, 10' },
             ]).map(opt => (
               <button
                 key={opt.id}

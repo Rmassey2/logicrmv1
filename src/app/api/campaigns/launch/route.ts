@@ -211,7 +211,7 @@ export async function POST(req: NextRequest) {
 
     // Build steps array from email_sequences or fallback to parsing campaign.body
     // Hardcoded delay schedule: days between each touch
-    const DELAY_SCHEDULE = [0, 2, 2, 3, 4, 4, 5] // Touch 1=0, 2=2d, 3=2d, 4=3d, 5=4d, 6=4d, 7=5d
+    const DELAY_SCHEDULE = [2, 2, 2, 3, 4, 4, 5] // All touches start with 2-day minimum delay
     interface SeqStep { subject: string; body: string; delay: number }
     const steps: SeqStep[] = []
 
@@ -223,7 +223,7 @@ export async function POST(req: NextRequest) {
         if (i > 0 && seq.day_number && sequences[i - 1]?.day_number) {
           delay = Math.max(seq.day_number - sequences[i - 1].day_number, 1)
         }
-        if (i === 0) delay = 0
+        // First touch uses DELAY_SCHEDULE[0] (2 days), not 0
         steps.push({
           subject: seq.subject || `Touch ${seq.touch_number}`,
           body: seq.body || '',
@@ -259,7 +259,7 @@ export async function POST(req: NextRequest) {
           {
             steps: steps.map((s, i) => ({
               type: 'email',
-              delay: i === 0 ? 0 : DELAY_SCHEDULE[i] ?? s.delay,
+              delay: DELAY_SCHEDULE[i] ?? s.delay,
               variants: [
                 {
                   subject: s.subject,
