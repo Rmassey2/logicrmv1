@@ -43,6 +43,8 @@ export default function SalesManagerPage() {
   const [briefingLoading, setBriefingLoading] = useState(false)
   const [currentUserId, setCurrentUserId] = useState('')
 
+  const [conflicts, setConflicts] = useState<{ company: string; reps: string[]; contactCount: number }[]>([])
+
   // Rep panel
   const [panelOpen, setPanelOpen] = useState(false)
   const [panelRep, setPanelRep] = useState<Rep | null>(null)
@@ -86,6 +88,13 @@ export default function SalesManagerPage() {
         submitted_at: c.submitted_at || c.id,
       })))
     }
+
+    // Load conflicts
+    try {
+      const confRes = await fetch('/api/sales-manager/conflicts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.id }) })
+      const confData = await confRes.json()
+      setConflicts(confData.conflicts || [])
+    } catch { /* ignore */ }
 
     setLoading(false)
 
@@ -315,6 +324,34 @@ export default function SalesManagerPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Account Conflicts ── */}
+      {conflicts.length > 0 && (
+        <div className="mt-6 rounded-xl p-4" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-yellow-400" /> Account Conflicts ({conflicts.length})</h3>
+          <p className="text-xs text-blue-300/40 mb-3">Companies where multiple reps have contacts — may need assignment.</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-white/10">
+                  <th className="px-3 py-2 text-[10px] font-semibold uppercase text-blue-300/50">Company</th>
+                  <th className="px-3 py-2 text-[10px] font-semibold uppercase text-blue-300/50">Reps Involved</th>
+                  <th className="px-3 py-2 text-[10px] font-semibold uppercase text-blue-300/50">Contacts</th>
+                </tr>
+              </thead>
+              <tbody>
+                {conflicts.slice(0, 15).map((c, i) => (
+                  <tr key={i} className="border-b border-white/5">
+                    <td className="px-3 py-2 text-xs text-white font-medium">{c.company}</td>
+                    <td className="px-3 py-2 text-xs text-blue-300/60">{c.reps.join(', ')}</td>
+                    <td className="px-3 py-2 text-xs text-blue-300/40">{c.contactCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ══ Rep Slide-Out Panel ══ */}
       {panelOpen && (

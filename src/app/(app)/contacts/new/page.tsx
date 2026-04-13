@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import toast from 'react-hot-toast'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, AlertTriangle } from 'lucide-react'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -45,6 +46,36 @@ export default function NewContactPage() {
     state: '',
     notes: '',
   })
+
+  const [duplicates, setDuplicates] = useState<{ id: string; first_name: string; last_name: string; email: string | null; company: string | null; owner_name: string }[]>([])
+  const [userId, setUserId] = useState('')
+  const debounceRef = useRef<NodeJS.Timeout>()
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => { if (user) setUserId(user.id) })
+  }, [])
+
+  // Debounced duplicate check
+  useEffect(() => {
+    if (!userId) return
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      if (!form.email && !(form.first_name && form.last_name && form.company)) {
+        setDuplicates([])
+        return
+      }
+      try {
+        const res = await fetch('/api/contacts/check-duplicate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: form.email, firstName: form.first_name, lastName: form.last_name, company: form.company, user_id: userId }),
+        })
+        const data = await res.json()
+        setDuplicates(data.duplicates || [])
+      } catch { setDuplicates([]) }
+    }, 500)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [form.email, form.first_name, form.last_name, form.company, userId])
 
   function update(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -181,6 +212,27 @@ export default function NewContactPage() {
             />
           </div>
         </div>
+
+        {/* Duplicate Warning */}
+        {duplicates.length > 0 && (
+          <div className="rounded-xl p-4 border" style={{ backgroundColor: 'rgba(234,179,8,0.05)', borderColor: 'rgba(234,179,8,0.3)' }}>
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="w-4 h-4 text-yellow-400" />
+              <p className="text-sm font-semibold text-yellow-400">This contact may already exist in LogiCRM</p>
+            </div>
+            <div className="space-y-2">
+              {duplicates.map(d => (
+                <div key={d.id} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                  <div>
+                    <p className="text-xs font-medium text-white">{d.first_name} {d.last_name}{d.company ? ` · ${d.company}` : ''}</p>
+                    <p className="text-[10px] text-blue-300/40">{d.email || 'No email'} · Owned by {d.owner_name}</p>
+                  </div>
+                  <Link href={`/contacts/${d.id}`} className="text-[10px] font-medium px-2 py-1 rounded-lg" style={{ color: '#d4930e', backgroundColor: 'rgba(212,147,14,0.08)' }}>View</Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Row: Secondary Email / Cell Phone */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
