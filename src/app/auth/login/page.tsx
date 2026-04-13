@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 
@@ -18,6 +18,17 @@ export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [promoCode, setPromoCode] = useState('')
   const [showPromo, setShowPromo] = useState(false)
+
+  // Redirect invite tokens to accept-invite page
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const hash = window.location.hash
+    const params = new URLSearchParams(window.location.search)
+    if (hash.includes('type=invite') || params.get('type') === 'invite') {
+      const target = `/auth/accept-invite${window.location.hash}${window.location.search ? (hash ? '&' : '?') + window.location.search.slice(1) : ''}`
+      router.push(target)
+    }
+  }, [router])
 
   const handleSubmit = async () => {
     setLoading(true)
