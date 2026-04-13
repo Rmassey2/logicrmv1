@@ -269,12 +269,22 @@ export default function SettingsPage() {
     if (membership || user.id === '04ed898a-ae7b-445c-8f9b-544291d48607') {
       const orgIdForFetch = membership?.org_id || '942ffbc8-25f4-4d88-9565-7251d637e25c'
 
+      // Try direct query first, fallback to settings API for org name
       const { data: org } = await supabase
         .from('organizations')
         .select('name')
         .eq('id', orgIdForFetch)
         .single()
-      setOrgName(org?.name ?? '')
+      if (org?.name) {
+        setOrgName(org.name)
+      } else {
+        // RLS blocked — get name from settings API which uses service role
+        try {
+          const nameRes = await fetch(`/api/settings?userId=${user.id}`)
+          const nameData = await nameRes.json()
+          setOrgName(nameData.company?.name || nameData.company?.company_name || '')
+        } catch { /* ignore */ }
+      }
 
       // Load all members
       const { data: allMembers } = await supabase
@@ -398,11 +408,13 @@ export default function SettingsPage() {
   // ── Team Invite ─────────────────────────────────────────────────────────
 
   async function handleInvite() {
+    console.log('[invite] Click fired. email:', inviteEmail, 'orgId:', orgId)
     if (!inviteEmail.trim()) { toast.error('Enter an email address'); return }
-    if (!orgId) { toast.error('Organization not found — try refreshing'); return }
+    if (!orgId) { toast.error('Organization not found — try refreshing the page'); return }
     setInviting(true)
 
     const { data: { user } } = await supabase.auth.getUser()
+    console.log('[invite] User:', user?.id, 'Sending to:', inviteEmail, 'org:', orgId)
 
     const res = await fetch('/api/team/invite', {
       method: 'POST',
