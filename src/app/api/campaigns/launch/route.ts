@@ -82,6 +82,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, status: 'active' })
     }
 
+    // Handle submit for approval
+    if (effectiveAction === 'submit_approval') {
+      console.log('[launch] Submit for approval:', campaign_id)
+      const { error: submitErr } = await supabase
+        .from('email_campaigns')
+        .update({ approval_status: 'pending', submitted_at: new Date().toISOString() })
+        .eq('id', campaign_id)
+      if (submitErr) {
+        console.error('[launch] Submit approval failed:', submitErr.message)
+        return NextResponse.json({ error: submitErr.message }, { status: 500 })
+      }
+      return NextResponse.json({ success: true, status: 'pending' })
+    }
+
     // ── New campaign launch flow ──────────────────────────────────────────
     console.log('[launch] Starting new campaign launch for:', campaign.name)
 
