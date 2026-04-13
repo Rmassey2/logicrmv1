@@ -140,7 +140,7 @@ export default function AiSequencePage() {
         name: displayName,
         company: c.company_name || '',
         phone: c.company_phone || '',
-        email: user.email || '',
+        email: user.user_metadata?.sending_email || user.email || '',
         website: c.company_website || '',
       })
     }
@@ -296,7 +296,7 @@ export default function AiSequencePage() {
     const c = compData.company || {}
     const sigCompany = c.company_name || senderCompany
     const sigPhone = c.company_phone || ''
-    const sigEmail = user.email || ''
+    const sigEmail = user.user_metadata?.sending_email || user.email || ''
     const sigWebsite = c.company_website || ''
     const sigLines = [sigName, sigCompany, sigPhone, sigEmail, sigWebsite].filter(Boolean)
     const signature = '\n\n' + sigLines.join('\n') + '\n\n\n'

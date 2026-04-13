@@ -140,6 +140,7 @@ export default function SettingsPage() {
   const [currentUserId, setCurrentUserId] = useState('')
   const [userEmail, setUserEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
+  const [sendingEmail, setSendingEmail] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
 
   // Company
@@ -197,6 +198,7 @@ export default function SettingsPage() {
 
     // Display name from user metadata
     setDisplayName(user.user_metadata?.display_name ?? '')
+    setSendingEmail(user.user_metadata?.sending_email ?? '')
 
     // Company settings — load from organizations table via API
     const compRes = await fetch(`/api/settings?userId=${user.id}`)
@@ -350,7 +352,7 @@ export default function SettingsPage() {
   async function saveProfile() {
     setSavingProfile(true)
     const { error } = await supabase.auth.updateUser({
-      data: { display_name: displayName.trim() },
+      data: { display_name: displayName.trim(), sending_email: sendingEmail.trim() },
     })
     if (error) {
       console.error('Profile save failed:', error)
@@ -746,6 +748,17 @@ export default function SettingsPage() {
                 className={inputClass}
               />
             </div>
+            <div>
+              <label className={labelClass}>Campaign Sending Address</label>
+              <input
+                type="email"
+                placeholder="yourname@macoships.com"
+                value={sendingEmail}
+                onChange={(e) => setSendingEmail(e.target.value)}
+                className={inputClass}
+              />
+              <p className="text-[10px] text-blue-300/30 mt-1">This email is used to send campaigns in Instantly. Usually your @macoships.com address.</p>
+            </div>
             {/* Signature preview */}
             <div>
               <label className={labelClass}>Email Signature Preview</label>
@@ -753,7 +766,7 @@ export default function SettingsPage() {
                 <p className="text-white font-medium">{displayName || 'Your Name'}</p>
                 <p className="text-blue-300/60">{company.company_name || orgName || 'Your Company'}</p>
                 {company.company_phone && <p className="text-blue-300/50 text-xs">{company.company_phone}</p>}
-                <p className="text-blue-300/40 text-xs">{userEmail || 'you@company.com'}</p>
+                <p className="text-blue-300/40 text-xs">{sendingEmail || userEmail || 'you@company.com'}</p>
                 {company.company_website && <p className="text-blue-300/40 text-xs">{company.company_website}</p>}
               </div>
               <p className="text-[10px] text-blue-300/30 mt-1">This signature is automatically appended to AI-generated email sequences.</p>

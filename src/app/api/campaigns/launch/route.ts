@@ -145,6 +145,8 @@ export async function POST(req: NextRequest) {
     if (campaignUserId) {
       const { data: authUser } = await supabase.auth.admin.getUserById(campaignUserId)
       sigName = authUser?.user?.user_metadata?.display_name || 'Jarrett Bailey'
+      // Per-user sending email from profile metadata (highest priority)
+      sendingEmail = authUser?.user?.user_metadata?.sending_email || ''
 
       // Get company info from organizations table
       const { data: membership } = await supabase
@@ -167,11 +169,12 @@ export async function POST(req: NextRequest) {
           sigCompany = org.company_name || 'Maco Logistics'
           sigPhone = org.company_phone || ''
           sigWebsite = org.company_website || ''
-          sendingEmail = org.sending_email || ''
+          // Org-level sending email as fallback only if per-user not set
+          if (!sendingEmail) sendingEmail = org.sending_email || ''
         }
       }
 
-      const sigEmail = authUser?.user?.email || ''
+      const sigEmail = sendingEmail || authUser?.user?.email || ''
       const sigLines = [sigName, sigCompany, sigPhone, sigEmail, sigWebsite].filter(Boolean)
       if (sigLines.length > 0) {
         signature = '\n\n' + sigLines.join('\n') + '\n\n\n'
