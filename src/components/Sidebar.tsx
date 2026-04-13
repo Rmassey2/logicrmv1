@@ -51,14 +51,11 @@ export default function Sidebar() {
 
       if (membership?.role === 'admin') {
         setIsAdmin(true)
-      } else if (memErr) {
-        // RLS blocked — try API route as fallback
-        try {
-          await fetch('/api/subscription', { method: 'GET' })
-          // If user has any org, they might be admin — fail open for now
-          console.log('[Sidebar] RLS blocked membership query, failing open for admin check')
-          setIsAdmin(true)
-        } catch { setIsAdmin(false) }
+      } else if (memErr && user.id === '04ed898a-ae7b-445c-8f9b-544291d48607') {
+        // Known admin fallback only — RLS blocked but we know this user is admin
+        setIsAdmin(true)
+      } else {
+        setIsAdmin(false)
       }
 
       // Count overdue + due today tasks
