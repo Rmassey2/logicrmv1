@@ -165,11 +165,11 @@ export async function POST(req: NextRequest) {
       console.log('[launch] Signature:', signature)
     }
 
-    // 4. Create campaign in Instantly.ai
+    // 4. Create campaign in Instantly.ai (placeholder subject/body — will be overwritten by PATCH with full sequences)
     const createRes = await createCampaign(
       campaign.name,
-      campaign.subject,
-      campaign.body ?? '',
+      'Sequence loading...',
+      'This will be replaced by the email sequence.',
       sigName,
       sendingEmail || undefined
     )
@@ -233,6 +233,9 @@ export async function POST(req: NextRequest) {
     }
 
     console.log('[launch] Step 4b - Built steps:', steps.length)
+    for (let i = 0; i < steps.length; i++) {
+      console.log(`[launch] Step ${i + 1}: subject="${steps[i].subject.slice(0, 50)}" delay=${steps[i].delay} bodyLen=${steps[i].body.length}`)
+    }
 
     if (steps.length > 0) {
       // Instantly v2: PATCH /campaigns/:id with sequences array
@@ -240,9 +243,9 @@ export async function POST(req: NextRequest) {
       const patchPayload = {
         sequences: [
           {
-            steps: steps.map(s => ({
+            steps: steps.map((s, i) => ({
               type: 'email',
-              delay: s.delay,
+              delay: i === 0 ? 0 : DELAY_SCHEDULE[i] ?? s.delay,
               variants: [
                 {
                   subject: s.subject,
@@ -254,7 +257,9 @@ export async function POST(req: NextRequest) {
         ],
       }
 
-      console.log('[launch] Step 4b - PATCH payload:', JSON.stringify(patchPayload, null, 2))
+      console.log('[launch] Step 4b - PATCH sequences count:', patchPayload.sequences[0].steps.length)
+      console.log('[launch] Step 4b - Step subjects:', patchPayload.sequences[0].steps.map((s, i) => `${i + 1}: ${s.variants[0].subject.slice(0, 40)} (delay: ${s.delay})`))
+      console.log('[launch] Step 4b - PATCH payload size:', JSON.stringify(patchPayload).length, 'chars')
 
       try {
         const patchRes = await fetch(`https://api.instantly.ai/api/v2/campaigns/${instantlyCampaignId}`, {
@@ -266,7 +271,8 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify(patchPayload),
         })
         const patchText = await patchRes.text()
-        console.log('[launch] Step 4b - PATCH response:', patchRes.status, patchText)
+        console.log('[launch] Step 4b - PATCH response status:', patchRes.status)
+        console.log('[launch] Step 4b - PATCH response body:', patchText.slice(0, 500))
 
         if (!patchRes.ok) {
           console.error('[launch] Step 4b - Sequence PATCH failed:', patchRes.status, patchText)
