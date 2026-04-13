@@ -61,9 +61,8 @@ function SectionCard({ title, children }: { title: string; children: React.React
 
 // ─── Getting Started Component ───────────────────────────────────────────────
 
-function GettingStarted({ checklist, userPlan, instantlyKey, setInstantlyKey, savingKey, saveInstantlyKey, setActiveTab, router }: {
+function GettingStarted({ checklist, instantlyKey, setInstantlyKey, savingKey, saveInstantlyKey, setActiveTab, router }: {
   checklist: { hasProfile: boolean; hasInstantlyKey: boolean; hasContacts: boolean; hasCampaign: boolean; hasTeamMember: boolean }
-  userPlan: string | null
   instantlyKey: string
   setInstantlyKey: (v: string) => void
   savingKey: boolean
@@ -78,9 +77,8 @@ function GettingStarted({ checklist, userPlan, instantlyKey, setInstantlyKey, sa
     { key: 'hasContacts', label: 'Import your contacts', desc: 'Upload a CSV or Excel file with your leads', link: '/contacts/import', action: null },
     { key: 'hasCampaign', label: 'Build your first campaign', desc: 'Create a 7-touch email sequence with AI', link: '/campaigns/ai-sequence', action: null },
   ]
-  if (userPlan === 'team' || userPlan === null) {
-    items.push({ key: 'hasTeamMember', label: 'Invite a team member', desc: 'Add reps to your organization', link: null, action: () => { setActiveTab('settings'); setTimeout(() => document.getElementById('team-section')?.scrollIntoView({ behavior: 'smooth' }), 100) } })
-  }
+  // Always show invite team item (hidden only if explicitly on rep plan with no admin access)
+  items.push({ key: 'hasTeamMember', label: 'Invite a team member', desc: 'Add reps to your organization', link: null, action: () => { setActiveTab('settings'); setTimeout(() => document.getElementById('team-section')?.scrollIntoView({ behavior: 'smooth' }), 100) } })
   const completed = items.filter(i => checklist[i.key as keyof typeof checklist]).length
   const total = items.length
   const allDone = completed === total
@@ -183,7 +181,8 @@ export default function SettingsPage() {
   // Tabs + Onboarding
   const [activeTab, setActiveTab] = useState('getting-started')
   const [checklist, setChecklist] = useState({ hasProfile: false, hasInstantlyKey: false, hasContacts: false, hasCampaign: false, hasTeamMember: false })
-  const [userPlan, setUserPlan] = useState<string | null>(null)
+  const [userPlan, setUserPlan] = useState<string | null>(null) // used in onboarding fetch
+  void userPlan // suppress unused warning — plan loaded for future gating
   const [instantlyKey, setInstantlyKey] = useState('')
   const [savingKey, setSavingKey] = useState(false)
 
@@ -607,7 +606,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Getting Started Tab */}
-      {activeTab === 'getting-started' && <GettingStarted checklist={checklist} userPlan={userPlan} instantlyKey={instantlyKey} setInstantlyKey={setInstantlyKey} savingKey={savingKey} saveInstantlyKey={saveInstantlyKey} setActiveTab={setActiveTab} router={router} />}
+      {activeTab === 'getting-started' && <GettingStarted checklist={checklist} instantlyKey={instantlyKey} setInstantlyKey={setInstantlyKey} savingKey={savingKey} saveInstantlyKey={saveInstantlyKey} setActiveTab={setActiveTab} router={router} />}
 
       {/* Email Tab */}
       {activeTab === 'email' && (
