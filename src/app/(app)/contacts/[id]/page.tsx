@@ -640,7 +640,6 @@ export default function ContactDetailPage() {
           body: sendBody.trim(),
           contact_id: id,
           user_id: userId,
-          from_name: 'Jarrett Bailey',
         }),
       })
       const data = await res.json()
@@ -1248,7 +1247,6 @@ export default function ContactDetailPage() {
                               body: generatedEmail.body,
                               contact_id: id,
                               user_id: userId,
-                              from_name: 'Jarrett Bailey',
                             }),
                           })
                           const data = await res.json()
