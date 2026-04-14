@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+export const dynamic = 'force-dynamic'
+
+// BUILD_MARKER: v7-outlook-only-2026-04-13
+// This route uses ONLY Microsoft Graph API (Outlook) and Gmail OAuth.
+// It does NOT use Resend. If you see Resend in logs, it's from a different route.
+
 export async function POST(req: NextRequest) {
   try {
+    console.log('[email/send] ██ BUILD v7-outlook-only ██ NO RESEND IN THIS FILE ██')
+
     const { to, subject, body, contact_id, user_id } = await req.json()
 
     console.log('[email/send] === START === user_id:', user_id, 'to:', to)
@@ -148,4 +156,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }
-// force deploy Mon Apr 13 19:13:13 CDT 2026
