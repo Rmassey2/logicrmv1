@@ -24,7 +24,14 @@ async function refreshOutlookToken(refreshToken: string) {
   return res.json()
 }
 
-async function sendViaGraph(accessToken: string, to: string, subject: string, htmlBody: string) {
+async function sendViaGraph(
+  accessToken: string,
+  to: string,
+  subject: string,
+  htmlBody: string,
+  fromAddress: string,
+  fromName: string | null
+) {
   const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
     method: 'POST',
     headers: {
@@ -36,6 +43,12 @@ async function sendViaGraph(accessToken: string, to: string, subject: string, ht
         subject,
         body: { contentType: 'HTML', content: htmlBody },
         toRecipients: [{ emailAddress: { address: to } }],
+        from: {
+          emailAddress: {
+            address: fromAddress,
+            name: fromName || fromAddress,
+          },
+        },
       },
     }),
   })
@@ -64,7 +77,7 @@ export async function POST(req: NextRequest) {
     // Step 1: Look up Outlook connection
     const { data: conn, error: connErr } = await supabase
       .from('outlook_connections')
-      .select('access_token, refresh_token, expires_at, email')
+      .select('access_token, refresh_token, expires_at, email, display_name')
       .eq('user_id', user_id)
       .maybeSingle()
 
@@ -111,7 +124,7 @@ export async function POST(req: NextRequest) {
 
     // Step 3: Send via Microsoft Graph API
     console.log('[email/send] Sending via graph.microsoft.com from:', conn.email)
-    const graphRes = await sendViaGraph(accessToken, to, subject, body)
+    const graphRes = await sendViaGraph(accessToken, to, subject, body, conn.email, conn.display_name)
     console.log('[email/send] Graph status:', graphRes.status)
 
     if (!graphRes.ok && graphRes.status !== 202) {
