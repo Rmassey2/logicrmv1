@@ -32,7 +32,8 @@ export async function GET(req: NextRequest) {
     redirect_uri: redirectUri,
     scope: SCOPES,
     response_mode: 'query',
-    prompt: 'consent',
+    prompt: 'select_account',
+    login_hint: 'rmassey@macotransport.com',
     state,
   })
 
