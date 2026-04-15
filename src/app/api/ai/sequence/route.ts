@@ -62,7 +62,9 @@ Touch 3 (Day ${days[2]}): Social proof story — mention a similar company you h
 Touch 4 (Day ${days[3]}): The "one lane" offer — ask for just one lane to prove yourself
 Touch 5 (Day ${days[4]}): Market insight / rate trends — share a freight market observation relevant to their segment
 Touch 6 (Day ${days[5]}): Case study or result — specific numbers (e.g. "saved 18% on their Memphis to Dallas lane")
-Touch 7 (Day ${days[6]}): Graceful goodbye email. Tone: warm, professional, no pressure. Tell them you appreciate them reading your emails, you'll reach out again down the road when the timing might be better, and wish them well. Do NOT say "closing your file", "breaking up", or anything negative. Leave the door wide open. Example tone: "I appreciate you taking the time to read my emails. I'll circle back in a few months — timing is everything in freight. Wishing you smooth shipping in the meantime." Always end with Maco's tagline naturally woven in: "We don't book loads we can't cover. All 48 states."`
+Touch 7 (Day ${days[6]}): Graceful goodbye email. Tone: warm, professional, no pressure. Tell them you appreciate them reading your emails, you'll reach out again down the road when the timing might be better, and wish them well. Do NOT say "closing your file", "breaking up", or anything negative. Leave the door wide open. Example tone: "I appreciate you taking the time to read my emails. I'll circle back in a few months — timing is everything in freight. Wishing you smooth shipping in the meantime." Always end with Maco's tagline naturally woven in: "We don't book loads we can't cover. All 48 states."
+
+IMPORTANT: Do NOT include a signature, sign-off name, company, phone, email, website, or "--" divider at the end of any email body. The system appends the sender's signature automatically. End each body with the closing line only (e.g. "Thanks,") — no name after it.`
 
     const userPrompt = `Write a 7-touch cold email sequence for:
 

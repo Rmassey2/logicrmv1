@@ -67,8 +67,8 @@ async function buildSignature(
   const lines = [name, company, phone, email, website].filter(Boolean)
   if (lines.length === 0) return { text: '', html: '' }
 
-  const text = '\n\n--\n' + lines.join('\n')
-  const html = '<br><br>--<br>' + lines.map(escapeHtml).join('<br>')
+  const text = '\n\n' + lines.join('\n')
+  const html = '<br><br>' + lines.map(escapeHtml).join('<br>')
   return { text, html }
 }
 

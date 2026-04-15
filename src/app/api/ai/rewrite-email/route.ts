@@ -12,6 +12,8 @@ export async function POST(req: NextRequest) {
 CRITICAL: Never mention industry labels, segment names, or category names (like "manufacturers", "distributors", "retailers") in the email copy. Write naturally as if speaking directly to one person. Use "you", "your team", "your freight" instead.
 ${tone ? `\nWrite in this tone: ${tone}. ${toneDescription}. The tone should feel natural and human.` : ''}
 
+IMPORTANT: Do NOT include a signature, sign-off name, company, phone, email, website, or "--" divider at the end of the body. The system appends the sender's signature automatically. Strip any existing signature from the original body when rewriting. End with the closing line only (e.g. "Thanks,") — no name after it.
+
 Return ONLY valid JSON with this structure:
 {"subject": "rewritten subject line", "body": "rewritten email body"}
 No markdown, no code fences.`
