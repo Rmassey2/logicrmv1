@@ -39,34 +39,30 @@ export default function CampaignsPage() {
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) { setLoading(false); return }
 
-      // Find all users in the same org so campaigns are visible to everyone in the org
-      const { data: myMembership } = await supabase
-        .from('organization_members')
-        .select('org_id')
-        .eq('user_id', user.id)
-        .limit(1)
-        .maybeSingle()
-
-      let orgUserIds: string[] = [user.id]
-      if (myMembership?.org_id) {
-        const { data: orgMembers } = await supabase
-          .from('organization_members')
-          .select('user_id')
-          .eq('org_id', myMembership.org_id)
-        if (orgMembers && orgMembers.length > 0) {
-          orgUserIds = orgMembers.map((m) => m.user_id)
+      // Use server-side service-role endpoint to bypass RLS and return all org campaigns
+      try {
+        const res = await fetch(`/api/campaigns/list?userId=${encodeURIComponent(user.id)}`)
+        const data = await res.json()
+        console.log('[campaigns page] list response:', {
+          ok: res.ok,
+          count: data.campaigns?.length,
+          orgId: data.orgId,
+          orgUserIds: data.orgUserIds,
+          error: data.error,
+        })
+        if (!res.ok) {
+          toast.error(data.error || 'Failed to load campaigns')
+          setCampaigns([])
+        } else {
+          setCampaigns(data.campaigns ?? [])
         }
+      } catch (err) {
+        console.error('[campaigns page] fetch error:', err)
+        toast.error('Failed to load campaigns')
+        setCampaigns([])
       }
-
-      const { data } = await supabase
-        .from('email_campaigns')
-        .select('id, name, status, approval_status, recipient_count, sent_count, open_count, reply_count, created_at')
-        .in('user_id', orgUserIds)
-        .order('created_at', { ascending: false })
-
-      setCampaigns(data ?? [])
       setLoading(false)
     }
     load()
