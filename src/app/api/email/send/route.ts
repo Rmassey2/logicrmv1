@@ -24,6 +24,60 @@ async function refreshOutlookToken(refreshToken: string) {
   return res.json()
 }
 
+async function buildSignature(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+  fallbackEmail: string
+): Promise<{ text: string; html: string }> {
+  const { data: authUser } = await supabase.auth.admin.getUserById(userId)
+  const meta = (authUser?.user?.user_metadata ?? {}) as Record<string, string | undefined>
+
+  const name =
+    meta.display_name ||
+    [meta.first_name, meta.last_name].filter(Boolean).join(' ') ||
+    ''
+  const phone = meta.phone || ''
+  const website = meta.website || ''
+  const email = meta.sending_email || authUser?.user?.email || fallbackEmail || ''
+
+  let company = ''
+  const { data: membership } = await supabase
+    .from('organization_members')
+    .select('org_id')
+    .eq('user_id', userId)
+    .limit(1)
+    .maybeSingle()
+  if (membership) {
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('company_name')
+      .eq('id', (membership as { org_id: string }).org_id)
+      .single()
+    company = (org as { company_name?: string } | null)?.company_name || ''
+  }
+
+  const lines = [name, company, phone, email, website].filter(Boolean)
+  if (lines.length === 0) return { text: '', html: '' }
+
+  const text = '\n\n--\n' + lines.join('\n')
+  const escape = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const html =
+    '<br><br>--<br>' + lines.map(escape).join('<br>')
+  return { text, html }
+}
+
+function appendSignatureToHtml(body: string, sigHtml: string): string {
+  if (!sigHtml) return body
+  if (body.includes('--<br>')) return body
+  const closingBodyIdx = body.toLowerCase().lastIndexOf('</body>')
+  if (closingBodyIdx !== -1) {
+    return body.slice(0, closingBodyIdx) + sigHtml + body.slice(closingBodyIdx)
+  }
+  return body + sigHtml
+}
+
 async function sendViaGraph(
   accessToken: string,
   to: string,
@@ -122,9 +176,13 @@ export async function POST(req: NextRequest) {
       console.log('[email/send] Token refreshed OK')
     }
 
+    // Step 2b: Append signature
+    const { html: sigHtml } = await buildSignature(supabase, user_id, conn.email)
+    const finalBody = appendSignatureToHtml(body, sigHtml)
+
     // Step 3: Send via Microsoft Graph API
     console.log('[email/send] Sending via graph.microsoft.com from:', conn.email)
-    const graphRes = await sendViaGraph(accessToken, to, subject, body, conn.email, conn.display_name)
+    const graphRes = await sendViaGraph(accessToken, to, subject, finalBody, conn.email, conn.display_name)
     console.log('[email/send] Graph status:', graphRes.status)
 
     if (!graphRes.ok && graphRes.status !== 202) {
