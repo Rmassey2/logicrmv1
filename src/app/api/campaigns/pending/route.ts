@@ -17,11 +17,12 @@ export async function GET(req: NextRequest) {
 
     const { data: membership } = await supabase
       .from('organization_members')
-      .select('org_id')
+      .select('org_id, role')
       .eq('user_id', userId)
       .limit(1)
       .maybeSingle()
 
+    const isAdmin = membership?.role === 'admin'
     let orgUserIds: string[] = [userId]
     if (membership?.org_id) {
       const { data: members } = await supabase
@@ -32,13 +33,21 @@ export async function GET(req: NextRequest) {
         orgUserIds = members.map((m) => m.user_id)
       }
     }
+    console.log('[campaigns/pending] caller:', userId, 'role:', membership?.role, 'org:', membership?.org_id, 'orgUserIds:', orgUserIds)
 
-    const { data: campaigns, error } = await supabase
+    let query = supabase
       .from('email_campaigns')
       .select('id, name, user_id, submitted_at, created_at')
       .eq('approval_status', 'pending')
-      .in('user_id', orgUserIds)
       .order('submitted_at', { ascending: false })
+
+    // Admins see every pending campaign org-wide; reps are scoped to themselves.
+    if (!isAdmin) {
+      query = query.in('user_id', orgUserIds)
+    }
+
+    const { data: campaigns, error } = await query
+    console.log('[campaigns/pending] fetched:', campaigns?.length, 'error:', error?.message)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })

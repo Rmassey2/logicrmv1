@@ -42,17 +42,30 @@ export async function POST(req: NextRequest) {
       if (caller.role !== 'admin') {
         return NextResponse.json({ error: 'Only admins can approve' }, { status: 403 })
       }
-      update = { approval_status: 'approved', approved_at: now }
+      update = { approval_status: 'approved', approved_at: now, approved_by: callerId }
     } else if (action === 'reject') {
       if (caller.role !== 'admin') {
         return NextResponse.json({ error: 'Only admins can reject' }, { status: 403 })
       }
-      update = { approval_status: 'rejected', approval_notes: (notes || '').trim() || null }
+      update = {
+        approval_status: 'rejected',
+        approval_notes: (notes || '').trim() || null,
+        approved_by: callerId,
+        approved_at: now,
+      }
     } else {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
     }
 
-    const { error } = await supabase.from('email_campaigns').update(update).eq('id', campaign_id)
+    let { error } = await supabase.from('email_campaigns').update(update).eq('id', campaign_id)
+
+    // If approved_by column isn't in the schema, retry without it
+    if (error && error.message?.toLowerCase().includes('approved_by')) {
+      const { approved_by: _drop, ...rest } = update as Record<string, string | null>
+      void _drop
+      const retry = await supabase.from('email_campaigns').update(rest).eq('id', campaign_id)
+      error = retry.error
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
