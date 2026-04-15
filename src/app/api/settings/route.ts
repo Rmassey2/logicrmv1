@@ -25,23 +25,11 @@ export async function GET(req: NextRequest) {
 
     if (!membership) return NextResponse.json({ company: null })
 
-    const res1 = await supabase
+    const { data: org } = await supabase
       .from('organizations')
-      .select('name, company_name, company_phone, company_website, company_address, sending_email')
+      .select('name, company_name, company_phone, company_website, company_address')
       .eq('id', membership.org_id)
       .single()
-
-    let org = res1.data
-
-    // If sending_email column doesn't exist yet, retry without it
-    if (res1.error && res1.error.message?.includes('sending_email')) {
-      const res2 = await supabase
-        .from('organizations')
-        .select('name, company_name, company_phone, company_website, company_address')
-        .eq('id', membership.org_id)
-        .single()
-      org = res2.data as typeof org
-    }
 
     return NextResponse.json({ company: org || {} })
   } catch (err) {
@@ -79,8 +67,8 @@ export async function POST(req: NextRequest) {
 
     console.log('[settings POST] Updating org:', membership.org_id, JSON.stringify(update))
 
-    // Filter out any keys that might not exist as columns — only send known safe columns
-    const safeColumns = ['company_name', 'company_phone', 'company_website', 'company_address', 'sending_email', 'name']
+    // Only shared company fields live on organizations — personal fields belong in auth.user_metadata
+    const safeColumns = ['company_name', 'company_phone', 'company_website', 'company_address', 'name']
     const safeUpdate: Record<string, string> = {}
     for (const [k, v] of Object.entries(update)) {
       if (safeColumns.includes(k)) safeUpdate[k] = v
@@ -88,23 +76,11 @@ export async function POST(req: NextRequest) {
 
     console.log('[settings POST] Safe update:', JSON.stringify(safeUpdate))
 
-    let { data: updateResult, error } = await supabase
+    const { error } = await supabase
       .from('organizations')
       .update(safeUpdate)
       .eq('id', membership.org_id)
       .select('id')
-
-    console.log('[settings POST] Result:', updateResult, 'Error:', error?.message)
-
-    // If sending_email column doesn't exist, retry without it
-    if (error && error.message?.includes('sending_email')) {
-      console.log('[settings POST] Retrying without sending_email')
-      const { sending_email: _removed, ...withoutSending } = safeUpdate
-      void _removed
-      const retry = await supabase.from('organizations').update(withoutSending).eq('id', membership.org_id).select('id')
-      updateResult = retry.data
-      error = retry.error
-    }
 
     if (error) {
       console.error('[settings POST] Update failed:', error.message, error.details, error.hint)

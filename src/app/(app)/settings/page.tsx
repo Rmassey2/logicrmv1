@@ -40,7 +40,7 @@ interface TeamMember {
   campaigns_count: number
 }
 
-const COMPANY_KEYS = ['company_name', 'company_phone', 'company_website', 'company_address', 'sending_email'] as const
+const COMPANY_KEYS = ['company_name', 'company_phone', 'company_website', 'company_address'] as const
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -139,9 +139,13 @@ export default function SettingsPage() {
   // Profile
   const [currentUserId, setCurrentUserId] = useState('')
   const [userEmail, setUserEmail] = useState('')
-  const [displayName, setDisplayName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [personalPhone, setPersonalPhone] = useState('')
+  const [personalWebsite, setPersonalWebsite] = useState('')
   const [sendingEmail, setSendingEmail] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
+  const displayName = [firstName, lastName].filter(Boolean).join(' ').trim()
 
   // Company
   const [company, setCompany] = useState<Record<string, string>>({
@@ -149,7 +153,6 @@ export default function SettingsPage() {
     company_phone: '',
     company_website: '',
     company_address: '',
-    sending_email: '',
   })
   const [savingCompany, setSavingCompany] = useState(false)
 
@@ -196,18 +199,30 @@ export default function SettingsPage() {
     setCurrentUserId(user.id)
     setUserEmail(user.email ?? '')
 
-    // Display name from user metadata
-    setDisplayName(user.user_metadata?.display_name ?? '')
-    setSendingEmail(user.user_metadata?.sending_email ?? '')
+    // Personal profile fields — read ONLY from the current user's auth metadata
+    const meta = user.user_metadata ?? {}
+    const legacyDisplay = typeof meta.display_name === 'string' ? meta.display_name.trim() : ''
+    const [legacyFirst, ...legacyRest] = legacyDisplay.split(/\s+/)
+    setFirstName(meta.first_name ?? legacyFirst ?? '')
+    setLastName(meta.last_name ?? legacyRest.join(' ') ?? '')
+    setPersonalPhone(meta.phone ?? '')
+    setPersonalWebsite(meta.website ?? '')
+    setSendingEmail(meta.sending_email ?? '')
 
-    // Company settings — load from organizations table via API
+    // Company settings — load from organizations table via API (shared company info only)
     const compRes = await fetch(`/api/settings?userId=${user.id}`)
     const compData = await compRes.json()
     if (compData.company) {
       const c = compData.company
       // Use org name as fallback for company_name (handles null AND empty string)
       if ((!c.company_name || !c.company_name.trim()) && c.name) c.company_name = c.name
-      setCompany(prev => ({ ...prev, ...c }))
+      const { company_name, company_phone, company_website, company_address } = c as Record<string, string>
+      setCompany({
+        company_name: company_name ?? '',
+        company_phone: company_phone ?? '',
+        company_website: company_website ?? '',
+        company_address: company_address ?? '',
+      })
     }
 
     // Pipeline stages
@@ -351,8 +366,17 @@ export default function SettingsPage() {
 
   async function saveProfile() {
     setSavingProfile(true)
+    const fn = firstName.trim()
+    const ln = lastName.trim()
     const { error } = await supabase.auth.updateUser({
-      data: { display_name: displayName.trim(), sending_email: sendingEmail.trim() },
+      data: {
+        first_name: fn,
+        last_name: ln,
+        display_name: [fn, ln].filter(Boolean).join(' '),
+        phone: personalPhone.trim(),
+        website: personalWebsite.trim(),
+        sending_email: sendingEmail.trim(),
+      },
     })
     if (error) {
       console.error('Profile save failed:', error)
@@ -744,36 +768,11 @@ export default function SettingsPage() {
             <div className="rounded-lg p-4 text-sm leading-relaxed" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
               <p className="text-white font-medium">{displayName || 'Your Name'}</p>
               <p className="text-blue-300/60">{company.company_name || orgName || 'Your Company'}</p>
-              {company.company_phone && <p className="text-blue-300/50 text-xs">{company.company_phone}</p>}
-              <p className="text-blue-300/40 text-xs">{userEmail || 'you@company.com'}</p>
-              {company.company_website && <p className="text-blue-300/40 text-xs">{company.company_website}</p>}
+              {personalPhone && <p className="text-blue-300/50 text-xs">{personalPhone}</p>}
+              <p className="text-blue-300/40 text-xs">{sendingEmail || userEmail || 'you@company.com'}</p>
+              {personalWebsite && <p className="text-blue-300/40 text-xs">{personalWebsite}</p>}
             </div>
-            <p className="text-[10px] text-blue-300/30">Edit your name in the Profile tab and company info in Settings to update this signature.</p>
-          </div>
-        </SectionCard>
-
-        {/* Sending Address */}
-        <SectionCard title="Outreach Sending Address">
-          <div className="space-y-3">
-            <div>
-              <label className={labelClass}>Sending Email</label>
-              <input
-                type="email"
-                value={company.sending_email || ''}
-                onChange={e => setCompany(p => ({ ...p, sending_email: e.target.value }))}
-                placeholder="yourname@yourdomain.com"
-                className={inputClass}
-              />
-              <p className="text-[10px] text-blue-300/30 mt-1">Used for Instantly campaigns. Usually your warmed-up outreach domain.</p>
-            </div>
-            <button
-              onClick={saveCompany}
-              disabled={savingCompany}
-              className="px-4 py-2 rounded-lg font-semibold text-sm hover:brightness-110 disabled:opacity-60 transition-colors"
-              style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}
-            >
-              {savingCompany ? 'Saving...' : 'Save'}
-            </button>
+            <p className="text-[10px] text-blue-300/30">Edit your personal info in the Profile tab to update this signature.</p>
           </div>
         </SectionCard>
       </div>
@@ -785,19 +784,53 @@ export default function SettingsPage() {
         {/* ── Profile ─────────────────────────────────────────────────────── */}
         <SectionCard title="Profile">
           <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>First Name</label>
+                <input
+                  type="text"
+                  placeholder="Jarrett"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Last Name</label>
+                <input
+                  type="text"
+                  placeholder="Bailey"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+            </div>
             <div>
               <label className={labelClass}>Email</label>
               <input type="email" value={userEmail} readOnly className={inputReadonlyClass} />
             </div>
-            <div>
-              <label className={labelClass}>Display Name</label>
-              <input
-                type="text"
-                placeholder="Jarrett Bailey"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className={inputClass}
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>Phone</label>
+                <input
+                  type="tel"
+                  placeholder="(901) 555-0100"
+                  value={personalPhone}
+                  onChange={(e) => setPersonalPhone(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Website</label>
+                <input
+                  type="url"
+                  placeholder="https://yoursite.com"
+                  value={personalWebsite}
+                  onChange={(e) => setPersonalWebsite(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
             </div>
             <div>
               <label className={labelClass}>Campaign Sending Address</label>
@@ -816,9 +849,9 @@ export default function SettingsPage() {
               <div className="rounded-lg p-4 text-sm leading-relaxed" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
                 <p className="text-white font-medium">{displayName || 'Your Name'}</p>
                 <p className="text-blue-300/60">{company.company_name || orgName || 'Your Company'}</p>
-                {company.company_phone && <p className="text-blue-300/50 text-xs">{company.company_phone}</p>}
+                {personalPhone && <p className="text-blue-300/50 text-xs">{personalPhone}</p>}
                 <p className="text-blue-300/40 text-xs">{sendingEmail || userEmail || 'you@company.com'}</p>
-                {company.company_website && <p className="text-blue-300/40 text-xs">{company.company_website}</p>}
+                {personalWebsite && <p className="text-blue-300/40 text-xs">{personalWebsite}</p>}
               </div>
               <p className="text-[10px] text-blue-300/30 mt-1">This signature is automatically appended to AI-generated email sequences.</p>
             </div>

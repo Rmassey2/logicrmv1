@@ -140,15 +140,22 @@ export async function POST(req: NextRequest) {
     // 4a. Build email signature from user profile + organizations table
     const campaignUserId = campaign.user_id
     let signature = ''
-    let sigName = 'Jarrett Bailey'
+    let sigName = ''
     let sendingEmail = ''
+    let sigPhone = ''
+    let sigWebsite = ''
     if (campaignUserId) {
       const { data: authUser } = await supabase.auth.admin.getUserById(campaignUserId)
-      sigName = authUser?.user?.user_metadata?.display_name || 'Jarrett Bailey'
-      // Per-user sending email from profile metadata (highest priority)
-      sendingEmail = authUser?.user?.user_metadata?.sending_email || ''
+      const meta = authUser?.user?.user_metadata ?? {}
+      sigName =
+        meta.display_name ||
+        [meta.first_name, meta.last_name].filter(Boolean).join(' ') ||
+        ''
+      sendingEmail = meta.sending_email || ''
+      sigPhone = meta.phone || ''
+      sigWebsite = meta.website || ''
 
-      // Get company info from organizations table
+      // Get shared company info from organizations table
       const { data: membership } = await supabase
         .from('organization_members')
         .select('org_id')
@@ -156,21 +163,15 @@ export async function POST(req: NextRequest) {
         .limit(1)
         .maybeSingle()
 
-      let sigCompany = 'Maco Logistics'
-      let sigPhone = ''
-      let sigWebsite = ''
+      let sigCompany = ''
       if (membership) {
         const { data: org } = await supabase
           .from('organizations')
-          .select('company_name, company_phone, company_website, sending_email')
+          .select('company_name')
           .eq('id', membership.org_id)
           .single()
         if (org) {
-          sigCompany = org.company_name || 'Maco Logistics'
-          sigPhone = org.company_phone || ''
-          sigWebsite = org.company_website || ''
-          // Org-level sending email as fallback only if per-user not set
-          if (!sendingEmail) sendingEmail = org.sending_email || ''
+          sigCompany = org.company_name || ''
         }
       }
 
