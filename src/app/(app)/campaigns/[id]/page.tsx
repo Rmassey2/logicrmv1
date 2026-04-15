@@ -324,40 +324,41 @@ export default function CampaignDetailPage() {
 
   // ── Approval workflow ──────────────────────────────────────────────────────
 
+  async function callApproval(action: 'submit' | 'approve' | 'reject', notes?: string) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { toast.error('Not signed in'); return false }
+    const res = await fetch('/api/campaigns/approval', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ campaign_id: id, action, callerId: user.id, notes }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      toast.error(data.error || `${action} failed`)
+      return false
+    }
+    return true
+  }
+
   async function handleSubmitForApproval() {
     console.log('[campaign] Submit approval for:', id)
-    try {
-      // Try direct update first
-      const { error } = await supabase
-        .from('email_campaigns')
-        .update({ approval_status: 'pending', submitted_at: new Date().toISOString() })
-        .eq('id', id)
-      if (error) {
-        console.error('[campaign] Direct submit failed:', error.message, '— trying via launch route')
-        // Fallback: use the launch API route which has service role key
-        const headers = await getAuthHeaders()
-        await fetch('/api/campaigns/launch', {
-          method: 'POST', headers,
-          body: JSON.stringify({ campaign_id: id, action: 'submit_approval' }),
-        })
-      }
-      toast.success('Submitted for approval!')
-      loadData()
-    } catch (err) {
-      console.error('[campaign] Submit failed:', err)
-      toast.error('Failed to submit')
-    }
+    const ok = await callApproval('submit')
+    if (!ok) return
+    toast.success('Submitted for approval!')
+    loadData()
   }
 
   async function handleApproveAndLaunch() {
-    await supabase.from('email_campaigns').update({ approval_status: 'approved', approved_at: new Date().toISOString() }).eq('id', id)
+    const ok = await callApproval('approve')
+    if (!ok) return
     toast.success('Approved! Launching...')
     handleLaunch()
   }
 
   async function handleReject() {
     if (!rejectNotes.trim()) { toast.error('Enter feedback'); return }
-    await supabase.from('email_campaigns').update({ approval_status: 'rejected', approval_notes: rejectNotes.trim() }).eq('id', id)
+    const ok = await callApproval('reject', rejectNotes.trim())
+    if (!ok) return
     setShowRejectModal(false)
     setRejectNotes('')
     toast.success('Campaign rejected with feedback')

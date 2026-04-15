@@ -9,6 +9,7 @@ import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Loader2, Users, DollarSign, ClipboardList, AlertTriangle, Clock, RefreshCw, X, PhoneCall, MailOpen, StickyNote, CalendarDays, CheckSquare } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
@@ -75,19 +76,16 @@ export default function SalesManagerPage() {
     if (data.totals) setTotals(data.totals)
     setCurrentUserId(user.id)
 
-    // Fetch pending campaigns
-    const { data: pendingCamps } = await supabase
-      .from('email_campaigns')
-      .select('id, name, user_id, submitted_at')
-      .eq('approval_status', 'pending')
-    if (pendingCamps && data.reps) {
-      const repMap = new Map((data.reps as Rep[]).map((r: Rep) => [r.userId, r.name]))
-      setPendingCampaigns(pendingCamps.map(c => ({
-        id: c.id,
-        name: c.name,
-        rep: repMap.get(c.user_id) || 'Unknown',
-        submitted_at: c.submitted_at || c.id,
-      })))
+    // Fetch pending campaigns via service-role endpoint (bypasses RLS so manager sees reps' pending)
+    try {
+      const pRes = await fetch(`/api/campaigns/pending?userId=${encodeURIComponent(user.id)}`)
+      const pData = await pRes.json()
+      console.log('[sales-manager] pending:', pData)
+      if (pRes.ok && Array.isArray(pData.pending)) {
+        setPendingCampaigns(pData.pending)
+      }
+    } catch (e) {
+      console.error('[sales-manager] pending fetch error:', e)
     }
 
     // Load conflicts
@@ -208,12 +206,44 @@ export default function SalesManagerPage() {
           <h3 className="text-sm font-semibold mb-3" style={{ color: '#d4930e' }}>{pendingCampaigns.length} campaign{pendingCampaigns.length !== 1 ? 's' : ''} pending your approval</h3>
           <div className="space-y-2">
             {pendingCampaigns.map(c => (
-              <div key={c.id} className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <div>
-                  <p className="text-sm font-medium text-white">{c.name}</p>
+              <div key={c.id} className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-white truncate">{c.name}</p>
                   <p className="text-[10px] text-blue-300/40">{c.rep} · Submitted {c.submitted_at ? new Date(c.submitted_at).toLocaleDateString() : ''}</p>
                 </div>
-                <Link href={`/campaigns/${c.id}`} className="px-3 py-1.5 rounded-lg text-xs font-semibold hover:brightness-110 transition-colors" style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}>Review</Link>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Link href={`/campaigns/${c.id}`} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-300 border border-white/10 hover:text-white hover:border-white/20 transition-colors">Review</Link>
+                  <button
+                    onClick={async () => {
+                      const res = await fetch('/api/campaigns/approval', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ campaign_id: c.id, action: 'approve', callerId: currentUserId }),
+                      })
+                      const d = await res.json().catch(() => ({}))
+                      if (!res.ok) { toast.error(d.error || 'Approve failed'); return }
+                      setPendingCampaigns(prev => prev.filter(p => p.id !== c.id))
+                      toast.success(`Approved "${c.name}"`)
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold hover:brightness-110 transition-colors"
+                    style={{ backgroundColor: '#059669', color: '#fff' }}
+                  >Approve</button>
+                  <button
+                    onClick={async () => {
+                      const notes = typeof window !== 'undefined' ? window.prompt(`Reject "${c.name}" — reason / feedback for the rep:`) : null
+                      if (notes === null) return
+                      const res = await fetch('/api/campaigns/approval', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ campaign_id: c.id, action: 'reject', callerId: currentUserId, notes }),
+                      })
+                      const d = await res.json().catch(() => ({}))
+                      if (!res.ok) { toast.error(d.error || 'Reject failed'); return }
+                      setPendingCampaigns(prev => prev.filter(p => p.id !== c.id))
+                      toast.success(`Rejected "${c.name}"`)
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold hover:brightness-110 transition-colors"
+                    style={{ backgroundColor: '#dc2626', color: '#fff' }}
+                  >Reject</button>
+                </div>
               </div>
             ))}
           </div>
