@@ -38,7 +38,7 @@ export default function ContactsPage() {
   const [deduping, setDeduping] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [pushingInstantly, setPushingInstantly] = useState(false)
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [, setIsAdmin] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
@@ -186,7 +186,7 @@ export default function ContactsPage() {
   }
 
   async function handleBulkDelete() {
-    if (!isAdmin || !userId) return
+    if (!userId) { toast.error('Not signed in'); return }
     if (selectedIds.size === 0) { toast.error('Select contacts first'); return }
     const count = selectedIds.size
     const ok = typeof window !== 'undefined' &&
@@ -262,7 +262,7 @@ export default function ContactsPage() {
             <Download className="w-4 h-4" />
             {exporting ? 'Exporting...' : 'Export'}
           </button>
-          {isAdmin && selectedIds.size > 0 && (
+          {selectedIds.size > 0 && (
             <button
               onClick={handleBulkDelete}
               disabled={bulkDeleting}
