@@ -251,38 +251,6 @@ export default function SalesManagerPage() {
         </div>
       )}
 
-      {/* ── AI Briefing ── */}
-      <div className="rounded-2xl p-5 mb-6" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(212,147,14,0.2)' }}>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: '#d4930e' }}>AI Sales Manager</h3>
-          <button onClick={() => loadBriefing(currentUserId)} disabled={briefingLoading} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-300 border border-white/10 hover:text-white transition-colors disabled:opacity-50">
-            <RefreshCw className={`w-3 h-3 ${briefingLoading ? 'animate-spin' : ''}`} /> Refresh
-          </button>
-        </div>
-        {briefingLoading && !briefing ? (
-          <div className="flex items-center gap-3 py-6 justify-center">
-            <Loader2 className="w-5 h-5 animate-spin" style={{ color: '#d4930e' }} />
-            <p className="text-sm text-blue-300/60">Analyzing team performance...</p>
-          </div>
-        ) : (
-          <div className="text-sm text-blue-200/80 leading-relaxed sm-brief">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{briefing}</ReactMarkdown>
-          </div>
-        )}
-      </div>
-
-      <style jsx global>{`
-        .sm-brief strong { color: #d4930e; font-weight: 600; }
-        .sm-brief h1, .sm-brief h2, .sm-brief h3 { color: #fff; font-weight: 600; margin: 0.4em 0 0.2em; font-size: 0.95em; }
-        .sm-brief p { margin: 0.3em 0; }
-        .sm-brief ul, .sm-brief ol { margin: 0.3em 0; padding-left: 1.2em; }
-        .sm-brief li { margin: 0.15em 0; }
-        .sm-brief table { width: 100%; border-collapse: collapse; margin: 0.5em 0; font-size: 0.85em; }
-        .sm-brief th, .sm-brief td { border: 1px solid rgba(255,255,255,0.1); padding: 0.4em 0.6em; text-align: left; }
-        .sm-brief th { background: rgba(255,255,255,0.05); color: #fff; font-weight: 600; }
-        .sm-brief td { color: #94a3b8; }
-      `}</style>
-
       {/* ── Rep Scorecards ── */}
       <h3 className="text-sm font-semibold uppercase tracking-wide text-blue-300 mb-3">Rep Scorecards</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
@@ -324,6 +292,38 @@ export default function SalesManagerPage() {
           )
         })}
       </div>
+
+      {/* ── AI Briefing ── */}
+      <div className="rounded-2xl p-5 mb-6" style={{ backgroundColor: '#0f1c35', border: '1px solid rgba(212,147,14,0.2)' }}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: '#d4930e' }}>AI Sales Manager</h3>
+          <button onClick={() => loadBriefing(currentUserId)} disabled={briefingLoading} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-300 border border-white/10 hover:text-white transition-colors disabled:opacity-50">
+            <RefreshCw className={`w-3 h-3 ${briefingLoading ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+        </div>
+        {briefingLoading && !briefing ? (
+          <div className="flex items-center gap-3 py-6 justify-center">
+            <Loader2 className="w-5 h-5 animate-spin" style={{ color: '#d4930e' }} />
+            <p className="text-sm text-blue-300/60">Analyzing team performance...</p>
+          </div>
+        ) : (
+          <div className="text-sm text-blue-200/80 leading-relaxed sm-brief">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{briefing}</ReactMarkdown>
+          </div>
+        )}
+      </div>
+
+      <style jsx global>{`
+        .sm-brief strong { color: #d4930e; font-weight: 600; }
+        .sm-brief h1, .sm-brief h2, .sm-brief h3 { color: #fff; font-weight: 600; margin: 0.4em 0 0.2em; font-size: 0.95em; }
+        .sm-brief p { margin: 0.3em 0; }
+        .sm-brief ul, .sm-brief ol { margin: 0.3em 0; padding-left: 1.2em; }
+        .sm-brief li { margin: 0.15em 0; }
+        .sm-brief table { width: 100%; border-collapse: collapse; margin: 0.5em 0; font-size: 0.85em; }
+        .sm-brief th, .sm-brief td { border: 1px solid rgba(255,255,255,0.1); padding: 0.4em 0.6em; text-align: left; }
+        .sm-brief th { background: rgba(255,255,255,0.05); color: #fff; font-weight: 600; }
+        .sm-brief td { color: #94a3b8; }
+      `}</style>
 
       {/* ── Master Pipeline Table ── */}
       <h3 className="text-sm font-semibold uppercase tracking-wide text-blue-300 mb-3">Master Pipeline</h3>
