@@ -110,80 +110,21 @@ export default function CampaignDetailPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth/login'); return }
 
-    const { data: camp, error } = await supabase
-      .from('email_campaigns')
-      .select('*')
-      .eq('id', id)
-      .single()
-
-    if (error || !camp) {
-      toast.error('Campaign not found')
+    // Use service-role endpoint so admins can view any org member's campaign (bypasses RLS)
+    const res = await fetch(`/api/campaigns/${id}?userId=${encodeURIComponent(user.id)}`)
+    const payload = await res.json().catch(() => ({}))
+    if (!res.ok || !payload.campaign) {
+      console.error('[campaign] Load failed:', payload.error)
+      toast.error(payload.error || 'Campaign not found')
       router.push('/campaigns')
       return
     }
+    const camp = payload.campaign
     setCampaign(camp as Campaign)
+    setIsAdmin(!!payload.viewer?.isAdmin)
+    setContacts(payload.contacts ?? [])
 
-    // Check if admin — try direct query, fail open for known admin
-    const { data: membership, error: memErr } = await supabase
-      .from('organization_members')
-      .select('role')
-      .eq('user_id', user.id)
-      .limit(1)
-      .maybeSingle()
-    console.log('[campaign] Admin check:', membership?.role, 'error:', memErr?.message)
-    if (membership?.role === 'admin') {
-      setIsAdmin(true)
-    } else if (memErr || !membership) {
-      // RLS may have blocked — check known admin
-      if (user.id === '04ed898a-ae7b-445c-8f9b-544291d48607') setIsAdmin(true)
-    }
-
-    const { data: rawEnrollments, error: enrollErr } = await supabase
-      .from('campaign_contacts')
-      .select('id, contact_id, status, user_id')
-      .eq('campaign_id', id)
-
-    console.log('[campaign] Raw enrollments:', rawEnrollments, 'error:', enrollErr)
-
-    // Filter in JS so NULL status rows are included (only exclude 'removed')
-    const enrollments = (rawEnrollments ?? []).filter(e => e.status !== 'removed')
-
-    if (enrollments.length > 0) {
-      const contactIds = enrollments.map(e => e.contact_id)
-      const { data: contactData } = await supabase
-        .from('contacts')
-        .select('id, first_name, last_name, company, email')
-        .in('id', contactIds)
-
-      const contactMap = new Map(
-        (contactData ?? []).map(c => [c.id, c])
-      )
-
-      setContacts(
-        enrollments.map(e => {
-          const c = contactMap.get(e.contact_id)
-          return {
-            id: e.id,
-            contact_id: e.contact_id,
-            first_name: c?.first_name ?? null,
-            last_name: c?.last_name ?? null,
-            company: c?.company ?? null,
-            email: c?.email ?? null,
-            status: e.status ?? 'enrolled',
-          }
-        })
-      )
-    } else {
-      setContacts([])
-    }
-
-    // Fetch email sequences
-    const { data: seqData } = await supabase
-      .from('email_sequences')
-      .select('touch_number, day_number, label, subject, body')
-      .eq('campaign_id', id)
-      .order('touch_number', { ascending: true })
-
+    const seqData = payload.sequences as { touch_number: number; day_number: number; label: string | null; subject: string | null; body: string | null }[] | undefined
     if (seqData && seqData.length > 0) {
       setSequences(seqData.map(s => ({
         touch: s.touch_number,
