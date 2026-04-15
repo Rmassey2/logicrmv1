@@ -24,10 +24,15 @@ async function refreshOutlookToken(refreshToken: string) {
   return res.json()
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 async function buildSignature(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   userId: string,
+  fallbackName: string | null,
   fallbackEmail: string
 ): Promise<{ text: string; html: string }> {
   const { data: authUser } = await supabase.auth.admin.getUserById(userId)
@@ -36,6 +41,7 @@ async function buildSignature(
   const name =
     meta.display_name ||
     [meta.first_name, meta.last_name].filter(Boolean).join(' ') ||
+    fallbackName ||
     ''
   const phone = meta.phone || ''
   const website = meta.website || ''
@@ -51,31 +57,47 @@ async function buildSignature(
   if (membership) {
     const { data: org } = await supabase
       .from('organizations')
-      .select('company_name')
+      .select('company_name, name')
       .eq('id', (membership as { org_id: string }).org_id)
       .single()
-    company = (org as { company_name?: string } | null)?.company_name || ''
+    const o = org as { company_name?: string; name?: string } | null
+    company = o?.company_name || o?.name || ''
   }
 
   const lines = [name, company, phone, email, website].filter(Boolean)
   if (lines.length === 0) return { text: '', html: '' }
 
   const text = '\n\n--\n' + lines.join('\n')
-  const escape = (s: string) =>
-    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const html =
-    '<br><br>--<br>' + lines.map(escape).join('<br>')
+  const html = '<br><br>--<br>' + lines.map(escapeHtml).join('<br>')
   return { text, html }
 }
 
-function appendSignatureToHtml(body: string, sigHtml: string): string {
-  if (!sigHtml) return body
-  if (body.includes('--<br>')) return body
-  const closingBodyIdx = body.toLowerCase().lastIndexOf('</body>')
+// Strip any existing plain-text or HTML signature block starting at a "--" divider.
+function stripExistingSignature(body: string): string {
+  let out = body
+  // Plain-text divider: line that is just "--" or "-- "
+  out = out.replace(/\n[ \t]*-{2,}[ \t]*\n[\s\S]*$/i, '')
+  // HTML divider: "--<br>" or "<br>--<br>"
+  out = out.replace(/(<br\s*\/?>\s*){1,}\s*-{2,}\s*(<br\s*\/?>[\s\S]*)?$/i, '')
+  return out.trimEnd()
+}
+
+// Convert plain-text body to HTML (newlines → <br>) unless it already looks like HTML.
+function toHtmlBody(body: string): string {
+  const looksLikeHtml = /<\/?(p|br|div|span|table|body|html|ul|ol|li|h[1-6])\b/i.test(body)
+  if (looksLikeHtml) return body
+  return escapeHtml(body).replace(/\r?\n/g, '<br>')
+}
+
+function appendSignature(body: string, sigHtml: string): string {
+  const stripped = stripExistingSignature(body)
+  const htmlBody = toHtmlBody(stripped)
+  if (!sigHtml) return htmlBody
+  const closingBodyIdx = htmlBody.toLowerCase().lastIndexOf('</body>')
   if (closingBodyIdx !== -1) {
-    return body.slice(0, closingBodyIdx) + sigHtml + body.slice(closingBodyIdx)
+    return htmlBody.slice(0, closingBodyIdx) + sigHtml + htmlBody.slice(closingBodyIdx)
   }
-  return body + sigHtml
+  return htmlBody + sigHtml
 }
 
 async function sendViaGraph(
@@ -176,9 +198,10 @@ export async function POST(req: NextRequest) {
       console.log('[email/send] Token refreshed OK')
     }
 
-    // Step 2b: Append signature
-    const { html: sigHtml } = await buildSignature(supabase, user_id, conn.email)
-    const finalBody = appendSignatureToHtml(body, sigHtml)
+    // Step 2b: Normalize body + always append signature (applies to direct + AI-drafted sends)
+    const { html: sigHtml } = await buildSignature(supabase, user_id, conn.display_name, conn.email)
+    const finalBody = appendSignature(body, sigHtml)
+    console.log('[email/send] signature appended, final length:', finalBody.length)
 
     // Step 3: Send via Microsoft Graph API
     console.log('[email/send] Sending via graph.microsoft.com from:', conn.email)
