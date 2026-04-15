@@ -162,13 +162,13 @@ export default function CampaignsPage() {
                       {cfg.label}
                     </span>
                     {c.approval_status && c.approval_status !== 'draft' && (
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                        c.approval_status === 'pending' ? 'bg-yellow-500/10 text-yellow-400' :
-                        c.approval_status === 'approved' ? 'bg-emerald-500/10 text-emerald-400' :
-                        c.approval_status === 'rejected' ? 'bg-red-500/10 text-red-400' :
-                        'bg-white/5 text-blue-300/40'
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${
+                        c.approval_status === 'pending' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30' :
+                        c.approval_status === 'approved' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' :
+                        c.approval_status === 'rejected' ? 'bg-red-500/10 text-red-400 border-red-500/30' :
+                        'bg-white/5 text-blue-300/40 border-white/10'
                       }`}>
-                        {c.approval_status}
+                        {c.approval_status === 'approved' ? 'Approved — Ready to Launch' : c.approval_status}
                       </span>
                     )}
                     <span className="text-blue-300/40 text-xs">{formatDate(c.created_at)}</span>

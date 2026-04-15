@@ -289,11 +289,11 @@ export default function CampaignDetailPage() {
     loadData()
   }
 
-  async function handleApproveAndLaunch() {
+  async function handleApprove() {
     const ok = await callApproval('approve')
     if (!ok) return
-    toast.success('Approved! Launching...')
-    handleLaunch()
+    toast.success('Campaign approved — rep can now launch')
+    loadData()
   }
 
   async function handleReject() {
@@ -490,7 +490,6 @@ export default function CampaignDetailPage() {
 
   const cfg = CAMPAIGN_STATUS_CONFIG[campaign.status ?? 'draft'] ?? CAMPAIGN_STATUS_CONFIG.draft
   const StatusIcon = cfg.icon
-  const isDraft = campaign.status === 'draft' || !campaign.status
   const isActive = campaign.status === 'active'
   const isPaused = campaign.status === 'paused'
   const hasInstantly = !!campaign.instantly_campaign_id
@@ -558,27 +557,33 @@ export default function CampaignDetailPage() {
             >
               <Plus className="w-4 h-4" /> Add Contacts
             </button>
-            {/* Rep: Submit for Approval / Admin: Launch directly */}
-            {isDraft && !isAdmin && (!campaign.approval_status || campaign.approval_status === 'draft') && (
+            {/* Rep controls */}
+            {!isAdmin && (!campaign.approval_status || campaign.approval_status === 'draft') && (
               <button onClick={handleSubmitForApproval} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 transition-colors" style={{ backgroundColor: '#d4930e' }}>
                 Submit for Approval
               </button>
             )}
-            {isDraft && isAdmin && (
-              <button onClick={handleLaunch} disabled={launching} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 disabled:opacity-60 transition-colors" style={{ backgroundColor: '#d4930e' }}>
+            {!isAdmin && campaign.approval_status === 'pending' && (
+              <span className="inline-flex items-center px-4 py-2.5 rounded-lg font-semibold text-xs text-yellow-400 border border-yellow-500/30 bg-yellow-500/5">
+                Awaiting Approval
+              </span>
+            )}
+            {!isAdmin && campaign.approval_status === 'rejected' && (
+              <button onClick={handleSubmitForApproval} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 transition-colors" style={{ backgroundColor: '#d4930e' }}>
+                Resubmit for Approval
+              </button>
+            )}
+            {!isAdmin && campaign.approval_status === 'approved' && (
+              <button onClick={handleLaunch} disabled={launching} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 disabled:opacity-60 transition-colors" style={{ backgroundColor: '#22c55e' }}>
                 <Rocket className="w-4 h-4" /> {launching ? 'Launching...' : 'Launch Campaign'}
               </button>
             )}
-            {campaign.approval_status === 'approved' && (
-              <button onClick={handleLaunch} disabled={launching} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 disabled:opacity-60 transition-colors" style={{ backgroundColor: '#22c55e' }}>
-                <Rocket className="w-4 h-4" /> {launching ? 'Launching...' : 'Launch Now'}
-              </button>
-            )}
+
             {/* Admin approval controls for pending campaigns */}
             {isAdmin && campaign.approval_status === 'pending' && (
               <>
-                <button onClick={handleApproveAndLaunch} disabled={launching} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm text-white hover:brightness-110 disabled:opacity-60 transition-colors" style={{ backgroundColor: '#22c55e' }}>
-                  {launching ? 'Launching...' : 'Approve & Launch'}
+                <button onClick={handleApprove} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm text-white hover:brightness-110 transition-colors" style={{ backgroundColor: '#22c55e' }}>
+                  Approve
                 </button>
                 <button onClick={() => setShowRejectModal(true)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-colors">
                   Reject
