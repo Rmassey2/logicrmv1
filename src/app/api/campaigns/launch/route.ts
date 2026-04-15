@@ -164,7 +164,8 @@ export async function POST(req: NextRequest) {
       sigWebsite = cleanWebsite(meta.website || '')
       const sigCompany = meta.company_name || ''
 
-      const sigEmail = sendingEmail || authUser?.user?.email || ''
+      // Signature uses the user's auth email — sending_email is only for Instantly sender identity
+      const sigEmail = authUser?.user?.email || ''
       const sigLines = [sigName, sigCompany, sigPhone, sigEmail, sigWebsite].filter(Boolean)
       if (sigLines.length > 0) {
         signature = '\n\n' + sigLines.join('\n') + '\n\n\n'

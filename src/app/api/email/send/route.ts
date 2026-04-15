@@ -52,7 +52,8 @@ async function buildSignature(
         ? phoneDigits.slice(1).replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')
         : (phoneDigits || rawPhone.trim())
   const website = (meta.website || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '')
-  const email = meta.sending_email || authUser?.user?.email || fallbackEmail || ''
+  // Signature always uses the user's real auth email, never the Instantly sending address
+  const email = authUser?.user?.email || fallbackEmail || ''
 
   // Company info is per-user (stored in auth metadata), not org-shared
   const company = meta.company_name || ''

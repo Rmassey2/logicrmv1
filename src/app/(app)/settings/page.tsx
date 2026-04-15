@@ -786,7 +786,7 @@ export default function SettingsPage() {
               <p className="text-white font-medium">{displayName || 'Your Name'}</p>
               <p className="text-blue-300/60">{company.company_name || orgName || 'Your Company'}</p>
               {personalPhone && <p className="text-blue-300/50 text-xs">{personalPhone}</p>}
-              <p className="text-blue-300/40 text-xs">{sendingEmail || userEmail || 'you@company.com'}</p>
+              <p className="text-blue-300/40 text-xs">{userEmail || 'you@company.com'}</p>
               {personalWebsite && <p className="text-blue-300/40 text-xs">{personalWebsite}</p>}
             </div>
             <p className="text-[10px] text-blue-300/30">Edit your personal info in the Profile tab to update this signature.</p>
@@ -875,7 +875,7 @@ export default function SettingsPage() {
                 <p className="text-white font-medium">{displayName || 'Your Name'}</p>
                 <p className="text-blue-300/60">{company.company_name || orgName || 'Your Company'}</p>
                 {personalPhone && <p className="text-blue-300/50 text-xs">{personalPhone}</p>}
-                <p className="text-blue-300/40 text-xs">{sendingEmail || userEmail || 'you@company.com'}</p>
+                <p className="text-blue-300/40 text-xs">{userEmail || 'you@company.com'}</p>
                 {personalWebsite && <p className="text-blue-300/40 text-xs">{personalWebsite}</p>}
               </div>
               <p className="text-[10px] text-blue-300/30 mt-1">This signature is automatically appended to AI-generated email sequences.</p>
