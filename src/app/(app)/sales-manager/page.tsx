@@ -229,8 +229,9 @@ export default function SalesManagerPage() {
                   >Approve</button>
                   <button
                     onClick={async () => {
-                      const notes = typeof window !== 'undefined' ? window.prompt(`Reject "${c.name}" — reason / feedback for the rep:`) : null
+                      const notes = typeof window !== 'undefined' ? window.prompt(`Reject "${c.name}" — feedback for the rep (required):`) : null
                       if (notes === null) return
+                      if (!notes.trim()) { toast.error('Rejection notes are required'); return }
                       const res = await fetch('/api/campaigns/approval', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ campaign_id: c.id, action: 'reject', callerId: currentUserId, notes }),

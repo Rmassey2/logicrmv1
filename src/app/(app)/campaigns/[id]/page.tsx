@@ -570,7 +570,7 @@ export default function CampaignDetailPage() {
             )}
             {!isAdmin && campaign.approval_status === 'rejected' && (
               <button onClick={handleSubmitForApproval} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 transition-colors" style={{ backgroundColor: '#d4930e' }}>
-                Resubmit for Approval
+                Edit &amp; Resubmit
               </button>
             )}
             {!isAdmin && campaign.approval_status === 'approved' && (
@@ -613,16 +613,22 @@ export default function CampaignDetailPage() {
           </div>
         </div>
 
+        {/* Rejection banner — prominent so the rep sees it immediately */}
+        {campaign.approval_status === 'rejected' && (
+          <div className="mt-5 p-4 rounded-xl border-2 border-red-500/50 bg-red-500/10">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-red-500 text-white">Rejected</span>
+              <p className="text-xs text-red-300/70">Address the feedback below, then click Edit &amp; Resubmit.</p>
+            </div>
+            <p className="text-sm text-red-100 leading-relaxed">
+              <span className="font-semibold">Rejected:</span>{' '}
+              {campaign.approval_notes?.trim() || 'No notes provided.'}
+            </p>
+          </div>
+        )}
+
         {/* Subject line */}
         <div className="mt-5 pt-5 border-t border-white/10">
-          {/* Rejection feedback */}
-          {campaign.approval_status === 'rejected' && campaign.approval_notes && (
-            <div className="mb-4 p-3 rounded-lg border border-red-500/30 bg-red-500/5">
-              <p className="text-xs font-semibold text-red-400 mb-1">Manager Feedback</p>
-              <p className="text-sm text-red-300/80">{campaign.approval_notes}</p>
-            </div>
-          )}
-
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-300/50 mb-1">Subject Line</p>
           <p className="text-sm text-white">{campaign.subject}</p>
         </div>
@@ -906,7 +912,11 @@ export default function CampaignDetailPage() {
               autoFocus
             />
             <div className="flex gap-3">
-              <button onClick={handleReject} className="flex-1 py-2.5 rounded-lg font-semibold text-sm text-white bg-red-500 hover:bg-red-600 transition-colors">Reject with Feedback</button>
+              <button
+                onClick={handleReject}
+                disabled={!rejectNotes.trim()}
+                className="flex-1 py-2.5 rounded-lg font-semibold text-sm text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+              >Reject with Feedback</button>
               <button onClick={() => setShowRejectModal(false)} className="px-4 py-2.5 rounded-lg text-sm text-blue-300 border border-white/10 hover:text-white transition-colors">Cancel</button>
             </div>
           </div>

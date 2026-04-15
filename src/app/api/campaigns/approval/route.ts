@@ -47,9 +47,13 @@ export async function POST(req: NextRequest) {
       if (caller.role !== 'admin') {
         return NextResponse.json({ error: 'Only admins can reject' }, { status: 403 })
       }
+      const trimmed = (notes || '').trim()
+      if (!trimmed) {
+        return NextResponse.json({ error: 'Rejection notes are required' }, { status: 400 })
+      }
       update = {
         approval_status: 'rejected',
-        approval_notes: (notes || '').trim() || null,
+        approval_notes: trimmed,
         approved_by: callerId,
         approved_at: now,
       }
