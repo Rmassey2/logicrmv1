@@ -39,6 +39,9 @@ export default function ContactsPage() {
   const [deduping, setDeduping] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [pushingInstantly, setPushingInstantly] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => {
     fetchContacts()
@@ -48,6 +51,15 @@ export default function ContactsPage() {
   async function fetchContacts() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+    setUserId(user.id)
+
+    const { data: membership } = await supabase
+      .from('organization_members')
+      .select('role')
+      .eq('user_id', user.id)
+      .limit(1)
+      .maybeSingle()
+    setIsAdmin(membership?.role === 'admin')
 
     let query = supabase
       .from('contacts')
@@ -221,6 +233,35 @@ export default function ContactsPage() {
     }
   }
 
+  async function handleBulkDelete() {
+    if (!isAdmin || !userId) return
+    if (selectedIds.size === 0) { toast.error('Select contacts first'); return }
+    const count = selectedIds.size
+    const ok = typeof window !== 'undefined' &&
+      window.confirm(`Are you sure you want to delete ${count} contact${count !== 1 ? 's' : ''}? This cannot be undone.`)
+    if (!ok) return
+
+    setBulkDeleting(true)
+    try {
+      const res = await fetch('/api/contacts/bulk-delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callerId: userId, contactIds: Array.from(selectedIds) }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? 'Delete failed')
+      } else {
+        toast.success(`Deleted ${data.deleted ?? count} contact${(data.deleted ?? count) !== 1 ? 's' : ''}`)
+        setSelectedIds(new Set())
+        await fetchContacts()
+      }
+    } catch {
+      toast.error('Delete failed')
+    }
+    setBulkDeleting(false)
+  }
+
   async function handlePushToInstantly() {
     if (selectedIds.size === 0) { toast.error('Select contacts first'); return }
     setPushingInstantly(true)
@@ -277,6 +318,17 @@ export default function ContactsPage() {
             <Download className="w-4 h-4" />
             {exportingInstantly ? 'Exporting...' : 'Export for Instantly'}
           </button>
+          {isAdmin && (
+            <button
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting || selectedIds.size === 0}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm text-white hover:brightness-110 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+              style={{ backgroundColor: '#dc2626' }}
+            >
+              <Trash2 className="w-4 h-4" />
+              {bulkDeleting ? 'Deleting...' : `Delete Selected (${selectedIds.size})`}
+            </button>
+          )}
           {selectedIds.size > 0 && (
             <button
               onClick={handlePushToInstantly}
