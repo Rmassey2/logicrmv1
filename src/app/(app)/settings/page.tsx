@@ -176,6 +176,7 @@ export default function SettingsPage() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [members, setMembers] = useState<TeamMember[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<'rep' | 'manager' | 'admin'>('rep')
   const [inviting, setInviting] = useState(false)
 
   // Danger zone
@@ -431,7 +432,7 @@ export default function SettingsPage() {
     const res = await fetch('/api/team/invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: inviteEmail.trim(), org_id: orgId, inviter_id: user?.id }),
+      body: JSON.stringify({ email: inviteEmail.trim(), org_id: orgId, inviter_id: user?.id, role: inviteRole }),
     })
     const data = await res.json()
 
@@ -980,6 +981,15 @@ export default function SettingsPage() {
                       onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
                       className={inputClass}
                     />
+                    <select
+                      value={inviteRole}
+                      onChange={(e) => setInviteRole(e.target.value as 'rep' | 'manager' | 'admin')}
+                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/50 shrink-0"
+                    >
+                      <option value="rep">Rep</option>
+                      <option value="manager">Manager</option>
+                      <option value="admin">Admin</option>
+                    </select>
                     <button
                       onClick={handleInvite}
                       disabled={inviting || !inviteEmail.trim()}
@@ -990,7 +1000,7 @@ export default function SettingsPage() {
                       {inviting ? 'Sending...' : 'Invite'}
                     </button>
                   </div>
-                  <p className="text-blue-300/40 text-xs mt-1.5">They&apos;ll receive a login link and be added as a rep.</p>
+                  <p className="text-blue-300/40 text-xs mt-1.5">They&apos;ll receive a login link and join as a {inviteRole}.</p>
                 </div>
               )}
             </div>
