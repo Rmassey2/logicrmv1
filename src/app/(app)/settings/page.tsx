@@ -934,11 +934,12 @@ export default function SettingsPage() {
                         <select
                           value={m.role}
                           onChange={(e) => handleRoleChange(m.user_id, e.target.value)}
-                          className="mt-0.5 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white focus:outline-none focus:border-white/30"
+                          style={{ backgroundColor: '#1a2a4a', color: '#ffffff' }}
+                          className="mt-0.5 border border-white/10 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase focus:outline-none focus:border-yellow-500/50"
                         >
-                          <option value="rep">Rep</option>
-                          <option value="manager">Manager</option>
-                          <option value="admin">Admin</option>
+                          <option value="rep" style={{ backgroundColor: '#1a2a4a', color: '#ffffff' }}>Rep</option>
+                          <option value="manager" style={{ backgroundColor: '#1a2a4a', color: '#ffffff' }}>Manager</option>
+                          <option value="admin" style={{ backgroundColor: '#1a2a4a', color: '#ffffff' }}>Admin</option>
                         </select>
                       ) : (
                         <span className={`text-[10px] font-semibold uppercase ${
@@ -984,11 +985,12 @@ export default function SettingsPage() {
                     <select
                       value={inviteRole}
                       onChange={(e) => setInviteRole(e.target.value as 'rep' | 'manager' | 'admin')}
-                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/50 shrink-0"
+                      style={{ backgroundColor: '#1a2a4a', color: '#ffffff' }}
+                      className="border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500/50 shrink-0"
                     >
-                      <option value="rep">Rep</option>
-                      <option value="manager">Manager</option>
-                      <option value="admin">Admin</option>
+                      <option value="rep" style={{ backgroundColor: '#1a2a4a', color: '#ffffff' }}>Rep</option>
+                      <option value="manager" style={{ backgroundColor: '#1a2a4a', color: '#ffffff' }}>Manager</option>
+                      <option value="admin" style={{ backgroundColor: '#1a2a4a', color: '#ffffff' }}>Admin</option>
                     </select>
                     <button
                       onClick={handleInvite}
