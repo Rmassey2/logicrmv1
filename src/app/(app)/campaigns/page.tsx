@@ -41,10 +41,29 @@ export default function CampaignsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
+      // Find all users in the same org so campaigns are visible to everyone in the org
+      const { data: myMembership } = await supabase
+        .from('organization_members')
+        .select('org_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle()
+
+      let orgUserIds: string[] = [user.id]
+      if (myMembership?.org_id) {
+        const { data: orgMembers } = await supabase
+          .from('organization_members')
+          .select('user_id')
+          .eq('org_id', myMembership.org_id)
+        if (orgMembers && orgMembers.length > 0) {
+          orgUserIds = orgMembers.map((m) => m.user_id)
+        }
+      }
+
       const { data } = await supabase
         .from('email_campaigns')
         .select('id, name, status, approval_status, recipient_count, sent_count, open_count, reply_count, created_at')
-        .eq('user_id', user.id)
+        .in('user_id', orgUserIds)
         .order('created_at', { ascending: false })
 
       setCampaigns(data ?? [])
@@ -56,12 +75,14 @@ export default function CampaignsPage() {
   function handleDelete(campaign: Campaign) {
     setConfirmModal({
       show: true,
-      message: `Delete "${campaign.name}"? This cannot be undone.`,
+      message: `Delete this campaign? This will also remove all enrolled contacts.`,
       onConfirm: async () => {
-        await supabase.from('email_sequences').delete().eq('campaign_id', campaign.id)
-        await supabase.from('campaign_contacts').delete().eq('campaign_id', campaign.id)
-        const { error } = await supabase.from('email_campaigns').delete().eq('id', campaign.id)
-        if (error) { toast.error('Failed to delete campaign: ' + error.message); return }
+        const res = await fetch(`/api/campaigns/${campaign.id}`, { method: 'DELETE' })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          toast.error('Failed to delete campaign: ' + (data.error || 'Unknown error'))
+          return
+        }
         setCampaigns(prev => prev.filter(c => c.id !== campaign.id))
         toast.success(`"${campaign.name}" deleted`)
       },
