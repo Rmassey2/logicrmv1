@@ -138,6 +138,14 @@ export async function POST(req: NextRequest) {
     }
 
     // 4a. Build email signature entirely from the campaign owner's auth metadata (per-user)
+    const formatPhone = (raw: string) => {
+      const digits = (raw || '').replace(/\D/g, '')
+      if (digits.length === 10) return digits.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')
+      if (digits.length === 11 && digits.startsWith('1')) return digits.slice(1).replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')
+      return digits || (raw || '').trim()
+    }
+    const cleanWebsite = (raw: string) => (raw || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '')
+
     const campaignUserId = campaign.user_id
     let signature = ''
     let sigName = ''
@@ -152,8 +160,8 @@ export async function POST(req: NextRequest) {
         [meta.first_name, meta.last_name].filter(Boolean).join(' ') ||
         ''
       sendingEmail = meta.sending_email || ''
-      sigPhone = meta.phone || ''
-      sigWebsite = meta.website || ''
+      sigPhone = formatPhone(meta.phone || '')
+      sigWebsite = cleanWebsite(meta.website || '')
       const sigCompany = meta.company_name || ''
 
       const sigEmail = sendingEmail || authUser?.user?.email || ''

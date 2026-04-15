@@ -43,8 +43,15 @@ async function buildSignature(
     [meta.first_name, meta.last_name].filter(Boolean).join(' ') ||
     fallbackName ||
     ''
-  const phone = meta.phone || ''
-  const website = meta.website || ''
+  const rawPhone = (meta.phone || '').toString()
+  const phoneDigits = rawPhone.replace(/\D/g, '')
+  const phone =
+    phoneDigits.length === 10
+      ? phoneDigits.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')
+      : phoneDigits.length === 11 && phoneDigits.startsWith('1')
+        ? phoneDigits.slice(1).replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')
+        : (phoneDigits || rawPhone.trim())
+  const website = (meta.website || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '')
   const email = meta.sending_email || authUser?.user?.email || fallbackEmail || ''
 
   // Company info is per-user (stored in auth metadata), not org-shared
