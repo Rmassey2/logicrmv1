@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     if (!membership?.org_id && user_id !== '04ed898a-ae7b-445c-8f9b-544291d48607') {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
-    if (membership && membership.role !== 'admin' && user_id !== '04ed898a-ae7b-445c-8f9b-544291d48607') {
+    if (membership && membership.role !== 'admin' && membership.role !== 'manager' && user_id !== '04ed898a-ae7b-445c-8f9b-544291d48607') {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
 

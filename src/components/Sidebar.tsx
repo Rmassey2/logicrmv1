@@ -49,7 +49,7 @@ export default function Sidebar() {
 
       console.log('[Sidebar] membership:', membership, 'error:', memErr?.message)
 
-      if (membership?.role === 'admin') {
+      if (membership?.role === 'admin' || membership?.role === 'manager') {
         setIsAdmin(true)
       } else if (memErr && user.id === '04ed898a-ae7b-445c-8f9b-544291d48607') {
         // Known admin fallback only — RLS blocked but we know this user is admin

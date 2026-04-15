@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       } else {
         return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
       }
-    } else if (mem.role !== 'admin') {
+    } else if (mem.role !== 'admin' && mem.role !== 'manager') {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
 

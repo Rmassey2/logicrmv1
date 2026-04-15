@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
       .limit(1)
       .maybeSingle()
 
-    const isAdmin = membership?.role === 'admin'
+    const isAdmin = membership?.role === 'admin' || membership?.role === 'manager'
     let orgUserIds: string[] = [userId]
     if (membership?.org_id) {
       const { data: members } = await supabase

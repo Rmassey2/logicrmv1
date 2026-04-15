@@ -39,12 +39,12 @@ export async function POST(req: NextRequest) {
     if (action === 'submit') {
       update = { approval_status: 'pending', submitted_at: now }
     } else if (action === 'approve') {
-      if (caller.role !== 'admin') {
+      if (caller.role !== 'admin' && caller.role !== 'manager') {
         return NextResponse.json({ error: 'Only admins can approve' }, { status: 403 })
       }
       update = { approval_status: 'approved', approved_at: now, approved_by: callerId }
     } else if (action === 'reject') {
-      if (caller.role !== 'admin') {
+      if (caller.role !== 'admin' && caller.role !== 'manager') {
         return NextResponse.json({ error: 'Only admins can reject' }, { status: 403 })
       }
       const trimmed = (notes || '').trim()

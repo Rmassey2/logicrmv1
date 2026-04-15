@@ -37,7 +37,7 @@ export async function GET(
     ])
 
     const isOwner = callerId === campaign.user_id
-    const isAdmin = callerMem?.role === 'admin'
+    const isAdmin = callerMem?.role === 'admin' || callerMem?.role === 'manager'
     const sameOrg = callerMem?.org_id && ownerMem?.org_id && callerMem.org_id === ownerMem.org_id
     if (!isOwner && !isAdmin && !sameOrg) {
       return NextResponse.json({ error: 'Not authorized to view this campaign' }, { status: 403 })
