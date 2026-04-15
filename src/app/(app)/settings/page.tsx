@@ -209,21 +209,13 @@ export default function SettingsPage() {
     setPersonalWebsite(meta.website ?? '')
     setSendingEmail(meta.sending_email ?? '')
 
-    // Company settings — load from organizations table via API (shared company info only)
-    const compRes = await fetch(`/api/settings?userId=${user.id}`)
-    const compData = await compRes.json()
-    if (compData.company) {
-      const c = compData.company
-      // Use org name as fallback for company_name (handles null AND empty string)
-      if ((!c.company_name || !c.company_name.trim()) && c.name) c.company_name = c.name
-      const { company_name, company_phone, company_website, company_address } = c as Record<string, string>
-      setCompany({
-        company_name: company_name ?? '',
-        company_phone: company_phone ?? '',
-        company_website: company_website ?? '',
-        company_address: company_address ?? '',
-      })
-    }
+    // Company info — read ONLY from the current user's auth metadata (per-user, not org-shared)
+    setCompany({
+      company_name: (meta.company_name as string) ?? '',
+      company_phone: (meta.company_phone as string) ?? '',
+      company_website: (meta.company_website as string) ?? '',
+      company_address: (meta.company_address as string) ?? '',
+    })
 
     // Pipeline stages
     const { data: stageData } = await supabase
@@ -410,21 +402,15 @@ export default function SettingsPage() {
 
   async function saveCompany() {
     setSavingCompany(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setSavingCompany(false); return }
+    const trimmed = Object.fromEntries(
+      COMPANY_KEYS.map((k) => [k, (company[k] ?? '').trim()])
+    ) as Record<(typeof COMPANY_KEYS)[number], string>
 
-    const settings = COMPANY_KEYS.map(key => ({ key, value: company[key]?.trim() ?? '' }))
+    const { error } = await supabase.auth.updateUser({ data: trimmed })
 
-    const res = await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: user.id, settings }),
-    })
-    const data = await res.json()
-
-    if (!res.ok) {
-      console.error('[settings] Save failed:', data.error)
-      toast.error('Failed to save: ' + (data.error || 'Unknown error'))
+    if (error) {
+      console.error('[settings] Save failed:', error.message)
+      toast.error('Failed to save: ' + error.message)
     } else {
       toast.success('Company info saved.')
     }

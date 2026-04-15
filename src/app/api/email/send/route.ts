@@ -47,22 +47,8 @@ async function buildSignature(
   const website = meta.website || ''
   const email = meta.sending_email || authUser?.user?.email || fallbackEmail || ''
 
-  let company = ''
-  const { data: membership } = await supabase
-    .from('organization_members')
-    .select('org_id')
-    .eq('user_id', userId)
-    .limit(1)
-    .maybeSingle()
-  if (membership) {
-    const { data: org } = await supabase
-      .from('organizations')
-      .select('company_name, name')
-      .eq('id', (membership as { org_id: string }).org_id)
-      .single()
-    const o = org as { company_name?: string; name?: string } | null
-    company = o?.company_name || o?.name || ''
-  }
+  // Company info is per-user (stored in auth metadata), not org-shared
+  const company = meta.company_name || ''
 
   const lines = [name, company, phone, email, website].filter(Boolean)
   if (lines.length === 0) return { text: '', html: '' }

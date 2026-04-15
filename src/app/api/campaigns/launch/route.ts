@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No contacts with email found' }, { status: 400 })
     }
 
-    // 4a. Build email signature from user profile + organizations table
+    // 4a. Build email signature entirely from the campaign owner's auth metadata (per-user)
     const campaignUserId = campaign.user_id
     let signature = ''
     let sigName = ''
@@ -154,26 +154,7 @@ export async function POST(req: NextRequest) {
       sendingEmail = meta.sending_email || ''
       sigPhone = meta.phone || ''
       sigWebsite = meta.website || ''
-
-      // Get shared company info from organizations table
-      const { data: membership } = await supabase
-        .from('organization_members')
-        .select('org_id')
-        .eq('user_id', campaignUserId)
-        .limit(1)
-        .maybeSingle()
-
-      let sigCompany = ''
-      if (membership) {
-        const { data: org } = await supabase
-          .from('organizations')
-          .select('company_name')
-          .eq('id', membership.org_id)
-          .single()
-        if (org) {
-          sigCompany = org.company_name || ''
-        }
-      }
+      const sigCompany = meta.company_name || ''
 
       const sigEmail = sendingEmail || authUser?.user?.email || ''
       const sigLines = [sigName, sigCompany, sigPhone, sigEmail, sigWebsite].filter(Boolean)
