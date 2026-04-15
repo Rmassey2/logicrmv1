@@ -3,10 +3,13 @@ import { createClient } from '@supabase/supabase-js'
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, org_id, inviter_id } = await req.json()
-    console.log('[team/invite] Request:', { email, org_id, inviter_id })
+    const { email, org_id, inviter_id, role: rawRole } = await req.json()
+    console.log('[team/invite] Request:', { email, org_id, inviter_id, role: rawRole })
 
     if (!email || !org_id) return NextResponse.json({ error: 'email and org_id required' }, { status: 400 })
+
+    const VALID_ROLES = ['rep', 'manager', 'admin'] as const
+    const role = (VALID_ROLES as readonly string[]).includes(rawRole) ? rawRole : 'rep'
 
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!serviceKey) return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
@@ -28,14 +31,14 @@ export async function POST(req: NextRequest) {
 
       if (mem) return NextResponse.json({ error: 'This user is already in your organization' }, { status: 400 })
 
-      await supabase.from('organization_members').insert({ org_id, user_id: existing.id, role: 'rep' })
+      await supabase.from('organization_members').insert({ org_id, user_id: existing.id, role })
       return NextResponse.json({ success: true, message: `${email} added to your organization` })
     }
 
     // New user — send invite with redirect to accept-invite page
     const { data: inviteData, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email, {
       redirectTo: `${appUrl}/auth/accept-invite`,
-      data: { org_id, role: 'rep', invited_by: inviter_id },
+      data: { org_id, role, invited_by: inviter_id },
     })
 
     console.log('[team/invite] Invite result:', inviteData?.user?.id, 'error:', inviteErr?.message)
@@ -44,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     // Pre-create org membership
     if (inviteData?.user?.id) {
-      await supabase.from('organization_members').insert({ org_id, user_id: inviteData.user.id, role: 'rep' })
+      await supabase.from('organization_members').insert({ org_id, user_id: inviteData.user.id, role })
       console.log('[team/invite] Created membership for:', inviteData.user.id)
     }
 

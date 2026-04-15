@@ -437,6 +437,57 @@ export default function SettingsPage() {
     loadData()
   }
 
+  async function handleRoleChange(targetUserId: string, newRole: string) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { toast.error('Not signed in'); return }
+
+    const prev = members.find((m) => m.user_id === targetUserId)?.role
+    setMembers((prevMembers) =>
+      prevMembers.map((m) => (m.user_id === targetUserId ? { ...m, role: newRole } : m))
+    )
+
+    const res = await fetch('/api/team/update-role', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: targetUserId, role: newRole, callerId: user.id }),
+    })
+    const data = await res.json().catch(() => ({}))
+
+    if (!res.ok) {
+      toast.error(data.error || 'Failed to update role')
+      if (prev) {
+        setMembers((prevMembers) =>
+          prevMembers.map((m) => (m.user_id === targetUserId ? { ...m, role: prev } : m))
+        )
+      }
+      return
+    }
+    toast.success('Role updated')
+  }
+
+  // ── Outlook Connect ─────────────────────────────────────────────────────
+
+  async function handleOutlookConnect() {
+    if (!currentUserId) { toast.error('Please sign in first'); return }
+    try {
+      const res = await fetch(`/api/outlook/connect?userId=${currentUserId}`, {
+        headers: { Accept: 'application/json' },
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.authUrl) {
+        window.location.href = data.authUrl
+        return
+      }
+      if (res.status === 400 && typeof data.error === 'string' && data.error.includes('complete your profile')) {
+        toast.error('Please complete your profile first — go to Settings → Profile and add your email address.', { duration: 6000 })
+      } else {
+        toast.error(data.error || 'Failed to start Outlook connection')
+      }
+    } catch {
+      toast.error('Failed to start Outlook connection')
+    }
+  }
+
   // ── Gmail Sync ──────────────────────────────────────────────────────────
 
   async function handleGmailSync() {
@@ -679,9 +730,9 @@ export default function SettingsPage() {
                   </div>
                 </div>
               ) : (
-                <a href={`/api/outlook/connect?userId=${currentUserId}`} className="inline-block px-4 py-2 rounded-lg text-xs font-semibold hover:brightness-110 transition-colors" style={{ backgroundColor: '#0078d4', color: '#fff' }}>
+                <button onClick={handleOutlookConnect} className="inline-block px-4 py-2 rounded-lg text-xs font-semibold hover:brightness-110 transition-colors" style={{ backgroundColor: '#0078d4', color: '#fff' }}>
                   Connect Outlook
-                </a>
+                </button>
               )}
             </div>
           </div>
@@ -859,11 +910,25 @@ export default function SettingsPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-white font-medium truncate">{m.email}</p>
-                      <span className={`text-[10px] font-semibold uppercase ${
-                        m.role === 'admin' ? 'text-yellow-400' : 'text-blue-400'
-                      }`}>
-                        {m.role}
-                      </span>
+                      {isAdmin ? (
+                        <select
+                          value={m.role}
+                          onChange={(e) => handleRoleChange(m.user_id, e.target.value)}
+                          className="mt-0.5 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white focus:outline-none focus:border-white/30"
+                        >
+                          <option value="rep">Rep</option>
+                          <option value="manager">Manager</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      ) : (
+                        <span className={`text-[10px] font-semibold uppercase ${
+                          m.role === 'admin' ? 'text-yellow-400'
+                          : m.role === 'manager' ? 'text-purple-400'
+                          : 'text-blue-400'
+                        }`}>
+                          {m.role}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-4 shrink-0 text-center">
                       <div>
