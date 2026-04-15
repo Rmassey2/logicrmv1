@@ -46,8 +46,6 @@ const COMPANY_KEYS = ['company_name', 'company_phone', 'company_website', 'compa
 
 const inputClass =
   'w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white placeholder-blue-300/40 focus:outline-none focus:ring-2 focus:ring-yellow-500/50 focus:border-transparent transition-colors'
-const inputReadonlyClass =
-  'w-full bg-white/[0.03] border border-white/5 rounded-lg px-4 py-2.5 text-sm text-blue-300/60 cursor-not-allowed'
 const labelClass = 'block text-xs font-semibold uppercase tracking-wide text-blue-300 mb-1.5'
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -206,7 +204,15 @@ export default function SettingsPage() {
     const [legacyFirst, ...legacyRest] = legacyDisplay.split(/\s+/)
     setFirstName(meta.first_name ?? legacyFirst ?? '')
     setLastName(meta.last_name ?? legacyRest.join(' ') ?? '')
-    setPersonalPhone(meta.phone ?? '')
+    {
+      const raw = (meta.phone ?? '') as string
+      const digits = raw.replace(/\D/g, '').slice(0, 10)
+      setPersonalPhone(
+        digits.length === 10
+          ? `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
+          : raw
+      )
+    }
     setPersonalWebsite(meta.website ?? '')
     setSendingEmail(meta.sending_email ?? '')
 
@@ -357,10 +363,32 @@ export default function SettingsPage() {
 
   // ── Profile ──────────────────────────────────────────────────────────────
 
+  function formatPhone(raw: string): string {
+    const digits = raw.replace(/\D/g, '').slice(0, 10)
+    if (digits.length <= 3) return digits
+    if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
+  }
+
   async function saveProfile() {
     setSavingProfile(true)
     const fn = firstName.trim()
     const ln = lastName.trim()
+    const newEmail = userEmail.trim()
+
+    // Update email separately if it changed (Supabase requires re-auth / email confirm)
+    const { data: { user: current } } = await supabase.auth.getUser()
+    let emailChanged = false
+    if (newEmail && current?.email && newEmail.toLowerCase() !== current.email.toLowerCase()) {
+      const { error: emailErr } = await supabase.auth.updateUser({ email: newEmail })
+      if (emailErr) {
+        toast.error(`Failed to update email: ${emailErr.message}`)
+        setSavingProfile(false)
+        return
+      }
+      emailChanged = true
+    }
+
     const { error } = await supabase.auth.updateUser({
       data: {
         first_name: fn,
@@ -374,6 +402,8 @@ export default function SettingsPage() {
     if (error) {
       console.error('Profile save failed:', error)
       toast.error(`Failed to save: ${error.message}`)
+    } else if (emailChanged) {
+      toast.success('Profile updated. Check your new inbox to confirm the email change.')
     } else {
       toast.success('Profile updated.')
     }
@@ -795,16 +825,24 @@ export default function SettingsPage() {
             </div>
             <div>
               <label className={labelClass}>Email</label>
-              <input type="email" value={userEmail} readOnly className={inputReadonlyClass} />
+              <input
+                type="email"
+                value={userEmail}
+                onChange={(e) => setUserEmail(e.target.value)}
+                placeholder="you@company.com"
+                className={inputClass}
+              />
+              <p className="text-[10px] text-blue-300/30 mt-1">Changing your email will send a confirmation link to the new address.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Phone</label>
                 <input
                   type="tel"
-                  placeholder="(901) 555-0100"
+                  placeholder="901-555-0100"
                   value={personalPhone}
-                  onChange={(e) => setPersonalPhone(e.target.value)}
+                  onChange={(e) => setPersonalPhone(formatPhone(e.target.value))}
+                  maxLength={12}
                   className={inputClass}
                 />
               </div>
