@@ -107,15 +107,30 @@ export async function addLeadsToCampaign(
   let lastError = ''
   let successCount = 0
   for (const l of validLeads) {
+    const firstName = (l.firstName ?? '').trim()
+    const lastName = (l.lastName ?? '').trim()
+    const companyName = (l.companyName ?? '').trim()
     const payload = {
       email: l.email.trim(),
-      first_name: l.firstName ?? '',
-      last_name: l.lastName ?? '',
-      company_name: l.companyName ?? '',
-      company: l.companyName ?? '',
+      first_name: firstName,
+      last_name: lastName,
+      company_name: companyName,
+      company: companyName,
+      // Mirror into custom_variables so {{first_name}} / {{last_name}} / {{company_name}}
+      // merge tags resolve even when Instantly reads variables from that slot.
+      custom_variables: {
+        first_name: firstName,
+        last_name: lastName,
+        company_name: companyName,
+      },
       campaign: campaignId,
     }
-    console.log('[instantly] Pushing lead:', payload.email)
+    console.log('[instantly] Pushing lead:', {
+      email: payload.email,
+      first_name: payload.first_name,
+      last_name: payload.last_name,
+      company_name: payload.company_name,
+    })
     const result = await request('/leads', {
       method: 'POST',
       body: JSON.stringify(payload),

@@ -281,13 +281,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 5. Add leads to Instantly (ensure all fields are strings, not undefined)
+    // 5. Add leads to Instantly — ensure merge-tag variables (first_name / last_name / company_name) populate
     const leads: InstantlyLead[] = contacts.map(c => ({
       email: c.email!,
-      firstName: c.first_name || '',
-      lastName: c.last_name || '',
-      companyName: c.company || '',
+      firstName: (c.first_name || '').trim(),
+      lastName: (c.last_name || '').trim(),
+      companyName: (c.company || '').trim(),
     }))
+    console.log('[launch] Lead payload sample:', leads.slice(0, 3))
 
     const leadsRes = await addLeadsToCampaign(instantlyCampaignId, leads)
     console.log('[launch] Step 5 - Instantly leads:', {

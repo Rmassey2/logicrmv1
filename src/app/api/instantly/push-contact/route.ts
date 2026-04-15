@@ -42,13 +42,21 @@ export async function POST(req: NextRequest) {
     }
 
     // Instantly v2 POST /leads expects a flat lead object with campaign_id
+    const firstName = (contact.first_name || '').trim()
+    const lastName = (contact.last_name || '').trim()
+    const companyName = (contact.company || '').trim()
     const payload = {
       email: email,
-      first_name: contact.first_name || '',
-      last_name: contact.last_name || '',
-      company_name: contact.company || '',
-      company: contact.company || '',
+      first_name: firstName,
+      last_name: lastName,
+      company_name: companyName,
+      company: companyName,
       phone: contact.phone || contact.cell_phone || '',
+      custom_variables: {
+        first_name: firstName,
+        last_name: lastName,
+        company_name: companyName,
+      },
       campaign: instantly_campaign_id,
     }
 
@@ -72,7 +80,14 @@ export async function POST(req: NextRequest) {
       console.log('[push-contact] Single format failed, trying batch format...')
       const batchPayload = {
         campaign_id: instantly_campaign_id,
-        leads: [{ email, first_name: contact.first_name || '', last_name: contact.last_name || '', company_name: contact.company || '' }],
+        leads: [{
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          company_name: companyName,
+          company: companyName,
+          custom_variables: { first_name: firstName, last_name: lastName, company_name: companyName },
+        }],
       }
       console.log('[push-contact] Batch payload:', JSON.stringify(batchPayload))
 
