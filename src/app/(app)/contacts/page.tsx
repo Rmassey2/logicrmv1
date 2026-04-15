@@ -35,7 +35,6 @@ export default function ContactsPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
   const [exporting, setExporting] = useState(false)
-  const [exportingInstantly, setExportingInstantly] = useState(false)
   const [deduping, setDeduping] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [pushingInstantly, setPushingInstantly] = useState(false)
@@ -117,53 +116,6 @@ export default function ContactsPage() {
     a.click()
     URL.revokeObjectURL(url)
     setExporting(false)
-  }
-
-  async function handleExportInstantly() {
-    setExportingInstantly(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const { data } = await supabase
-      .from('contacts')
-      .select('first_name, last_name, email, company, phone, city, state')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-
-    if (!data || data.length === 0) {
-      setExportingInstantly(false)
-      return
-    }
-
-    const instantlyColumns = [
-      { db: 'first_name', header: 'firstName' },
-      { db: 'last_name', header: 'lastName' },
-      { db: 'email', header: 'email' },
-      { db: 'company', header: 'companyName' },
-      { db: 'phone', header: 'phone' },
-      { db: 'city', header: 'city' },
-      { db: 'state', header: 'state' },
-    ]
-
-    const header = instantlyColumns.map(c => c.header).join(',')
-    const rows = (data as unknown as Record<string, string | null>[]).map((row) =>
-      instantlyColumns.map(c => {
-        const val = row[c.db] ?? ''
-        return val.includes(',') || val.includes('"') || val.includes('\n')
-          ? `"${val.replace(/"/g, '""')}"`
-          : val
-      }).join(',')
-    )
-    const csv = [header, ...rows].join('\n')
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'logicrm-contacts-instantly.csv'
-    a.click()
-    URL.revokeObjectURL(url)
-    setExportingInstantly(false)
   }
 
   async function handleDedup() {
@@ -310,19 +262,11 @@ export default function ContactsPage() {
             <Download className="w-4 h-4" />
             {exporting ? 'Exporting...' : 'Export'}
           </button>
-          <button
-            onClick={handleExportInstantly}
-            disabled={exportingInstantly || totalCount === 0}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm text-blue-300 border border-white/10 hover:text-white hover:border-white/20 disabled:opacity-40 disabled:pointer-events-none transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            {exportingInstantly ? 'Exporting...' : 'Export for Instantly'}
-          </button>
-          {isAdmin && (
+          {isAdmin && selectedIds.size > 0 && (
             <button
               onClick={handleBulkDelete}
-              disabled={bulkDeleting || selectedIds.size === 0}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm text-white hover:brightness-110 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+              disabled={bulkDeleting}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm text-white hover:brightness-110 disabled:opacity-60 transition-colors"
               style={{ backgroundColor: '#dc2626' }}
             >
               <Trash2 className="w-4 h-4" />
