@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 
@@ -18,29 +18,56 @@ export default function AcceptInvitePage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const resolved = useRef(false)
 
   useEffect(() => {
-    async function handleToken() {
-      // Supabase sends tokens via URL hash fragment
-      // The supabase client auto-detects hash tokens on load
-      const { data: { session }, error: sessionErr } = await supabase.auth.getSession()
+    function markReady() {
+      if (resolved.current) return
+      resolved.current = true
+      setStatus('set-password')
+    }
 
-      if (session) {
-        // User has a valid session from the invite link
-        console.log('[accept-invite] Session found:', session.user?.email)
-        setStatus('set-password')
+    function markError(msg: string) {
+      if (resolved.current) return
+      resolved.current = true
+      setError(msg)
+      setStatus('error')
+    }
+
+    // 1. Listen for auth state changes — Supabase auto-processes hash tokens
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY') {
+        markReady()
+      }
+    })
+
+    async function handleToken() {
+      // 2. Check if Supabase already established a session (auto-parsed hash)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) { markReady(); return }
+
+      if (typeof window === 'undefined') return
+
+      // 3. Try PKCE code exchange (newer Supabase email links use ?code=)
+      const urlParams = new URLSearchParams(window.location.search)
+      const code = urlParams.get('code')
+      if (code) {
+        const { error: codeErr } = await supabase.auth.exchangeCodeForSession(code)
+        if (codeErr) {
+          console.error('[accept-invite] Code exchange failed:', codeErr)
+          markError('Invalid or expired invite link. Please ask your admin to resend the invite.')
+        } else {
+          markReady()
+        }
         return
       }
 
-      // Try to exchange token from URL params (type=invite)
-      if (typeof window !== 'undefined') {
-        const hash = window.location.hash
+      // 4. Try hash fragment tokens (#access_token=...&refresh_token=...)
+      const hash = window.location.hash
+      if (hash) {
         const params = new URLSearchParams(hash.replace('#', ''))
         const accessToken = params.get('access_token')
         const refreshToken = params.get('refresh_token')
-        const type = params.get('type')
-
-        console.log('[accept-invite] URL params:', { type, hasAccess: !!accessToken, hasRefresh: !!refreshToken })
 
         if (accessToken && refreshToken) {
           const { error: setErr } = await supabase.auth.setSession({
@@ -48,45 +75,43 @@ export default function AcceptInvitePage() {
             refresh_token: refreshToken,
           })
           if (setErr) {
-            console.error('[accept-invite] Session set failed:', setErr)
-            setError('Invalid or expired invite link. Please ask your manager to resend the invite.')
-            setStatus('error')
-            return
+            console.error('[accept-invite] setSession failed:', setErr)
+            markError('Invalid or expired invite link. Please ask your admin to resend the invite.')
+          } else {
+            markReady()
           }
-          setStatus('set-password')
-          return
-        }
-
-        // Check for token_hash in query params (newer Supabase format)
-        const urlParams = new URLSearchParams(window.location.search)
-        const tokenHash = urlParams.get('token_hash')
-        const tokenType = urlParams.get('type')
-
-        if (tokenHash && tokenType === 'invite') {
-          const { error: verifyErr } = await supabase.auth.verifyOtp({
-            token_hash: tokenHash,
-            type: 'invite',
-          })
-          if (verifyErr) {
-            console.error('[accept-invite] OTP verify failed:', verifyErr)
-            setError('Invalid or expired invite link. Please ask your manager to resend the invite.')
-            setStatus('error')
-            return
-          }
-          setStatus('set-password')
           return
         }
       }
 
-      // No token found — check if already logged in
-      if (sessionErr) {
-        console.error('[accept-invite] Session error:', sessionErr)
+      // 5. Try token_hash in query params (another Supabase format)
+      const tokenHash = urlParams.get('token_hash')
+      const tokenType = urlParams.get('type')
+      if (tokenHash && (tokenType === 'invite' || tokenType === 'signup')) {
+        const { error: verifyErr } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: 'invite',
+        })
+        if (verifyErr) {
+          console.error('[accept-invite] OTP verify failed:', verifyErr)
+          markError('Invalid or expired invite link. Please ask your admin to resend the invite.')
+        } else {
+          markReady()
+        }
+        return
       }
-      setError('No invite token found. Please use the link from your invite email.')
-      setStatus('error')
+
+      // 6. Give the auth listener a moment to fire (hash auto-parsing is async)
+      setTimeout(() => {
+        if (!resolved.current) {
+          markError('No invite token found. Please use the link from your invite email.')
+        }
+      }, 3000)
     }
 
     handleToken()
+
+    return () => subscription.unsubscribe()
   }, [])
 
   async function handleSetPassword() {
@@ -102,14 +127,8 @@ export default function AcceptInvitePage() {
       return
     }
 
-    // Also set display name if provided via invite metadata
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user?.user_metadata?.display_name) {
-      await supabase.auth.updateUser({ data: { display_name: user.user_metadata.display_name } })
-    }
-
     setStatus('success')
-    setTimeout(() => router.push('/dashboard'), 2000)
+    setTimeout(() => router.push('/dashboard'), 1500)
   }
 
   return (
