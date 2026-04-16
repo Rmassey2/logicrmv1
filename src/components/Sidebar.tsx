@@ -39,24 +39,27 @@ export default function Sidebar() {
       if (!user) return
       setUserEmail(user.email ?? '')
 
-      // Check if user is an admin — try direct query first, fallback to API
-      const { data: membership, error: memErr } = await supabase
+      // Check if user is admin or manager — try direct query first, fallback to API (bypasses RLS)
+      let role: string | null = null
+      const { data: membership } = await supabase
         .from('organization_members')
         .select('role')
         .eq('user_id', user.id)
         .limit(1)
         .maybeSingle()
 
-      console.log('[Sidebar] membership:', membership, 'error:', memErr?.message)
+      role = membership?.role || null
 
-      if (membership?.role === 'admin' || membership?.role === 'manager') {
-        setIsAdmin(true)
-      } else if (memErr && user.id === '04ed898a-ae7b-445c-8f9b-544291d48607') {
-        // Known admin fallback only — RLS blocked but we know this user is admin
-        setIsAdmin(true)
-      } else {
-        setIsAdmin(false)
+      // If direct query returned nothing (RLS blocked), use server API with service role
+      if (!role) {
+        try {
+          const res = await fetch(`/api/user/role?userId=${encodeURIComponent(user.id)}`)
+          const data = await res.json()
+          role = data.role || null
+        } catch { /* ignore */ }
       }
+
+      setIsAdmin(role === 'admin' || role === 'manager')
 
       // Count overdue + due today tasks
       const todayStr = new Date().toISOString().split('T')[0]

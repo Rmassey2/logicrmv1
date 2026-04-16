@@ -101,7 +101,7 @@ export default function SalesManagerPage() {
         .from('activities')
         .select('id, contact_id, user_id, subject, notes, created_at')
         .like('subject', 'Campaign Reply:%')
-        .eq('source', 'instantly')
+        .or('source.eq.instantly,source.eq.instantly_reply')
         .order('created_at', { ascending: false })
         .limit(20)
       if (replies && data.reps) {

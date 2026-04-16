@@ -16,7 +16,6 @@ import {
   CheckCircle2,
   Circle,
   ArrowRight,
-  Key,
   Rocket,
 } from 'lucide-react'
 
@@ -59,24 +58,19 @@ function SectionCard({ title, children }: { title: string; children: React.React
 
 // ─── Getting Started Component ───────────────────────────────────────────────
 
-function GettingStarted({ checklist, instantlyKey, setInstantlyKey, savingKey, saveInstantlyKey, setActiveTab, router }: {
-  checklist: { hasProfile: boolean; hasInstantlyKey: boolean; hasContacts: boolean; hasCampaign: boolean; hasTeamMember: boolean }
-  instantlyKey: string
-  setInstantlyKey: (v: string) => void
-  savingKey: boolean
-  saveInstantlyKey: () => void
+function GettingStarted({ checklist, setActiveTab, router }: {
+  checklist: { hasProfile: boolean; hasEmail: boolean; hasContacts: boolean; hasCampaign: boolean; hasTeamMember: boolean }
   setActiveTab: (v: string) => void
   router: { push: (url: string) => void }
 }) {
   type CheckItem = { key: string; label: string; desc: string; link: string | null; action: (() => void) | null }
   const items: CheckItem[] = [
-    { key: 'hasProfile', label: 'Complete your profile', desc: 'Set your display name and phone number', link: null, action: () => setActiveTab('settings') },
-    { key: 'hasInstantlyKey', label: 'Add your Instantly API key', desc: 'Connect to Instantly.ai for email campaigns', link: null, action: null },
+    { key: 'hasProfile', label: 'Complete your profile', desc: 'Add your name, phone, email, and website', link: null, action: () => setActiveTab('settings') },
+    { key: 'hasEmail', label: 'Connect your email', desc: 'Link Gmail or Outlook to sync messages', link: null, action: () => setActiveTab('email') },
     { key: 'hasContacts', label: 'Import your contacts', desc: 'Upload a CSV or Excel file with your leads', link: '/contacts/import', action: null },
-    { key: 'hasCampaign', label: 'Build your first campaign', desc: 'Create a 7-touch email sequence with AI', link: '/campaigns/ai-sequence', action: null },
+    { key: 'hasCampaign', label: 'Build your first campaign', desc: 'Create an outbound email campaign', link: '/campaigns/new', action: null },
+    { key: 'hasTeamMember', label: 'Invite your team (optional)', desc: 'Add reps to your organization', link: null, action: () => { setActiveTab('settings'); setTimeout(() => document.getElementById('team-section')?.scrollIntoView({ behavior: 'smooth' }), 100) } },
   ]
-  // Always show invite team item (hidden only if explicitly on rep plan with no admin access)
-  items.push({ key: 'hasTeamMember', label: 'Invite a team member', desc: 'Add reps to your organization', link: null, action: () => { setActiveTab('settings'); setTimeout(() => document.getElementById('team-section')?.scrollIntoView({ behavior: 'smooth' }), 100) } })
   const completed = items.filter(i => checklist[i.key as keyof typeof checklist]).length
   const total = items.length
   const allDone = completed === total
@@ -85,7 +79,7 @@ function GettingStarted({ checklist, instantlyKey, setInstantlyKey, savingKey, s
     <div className="space-y-6">
       <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-white">{allDone ? 'All set!' : 'Getting Started'}</h3>
+          <h3 className="text-sm font-semibold text-white">{allDone ? "You're all set!" : 'Getting Started'}</h3>
           <span className="text-xs text-blue-300/50">{completed} of {total} complete</span>
         </div>
         <div className="w-full h-2 rounded-full bg-white/10">
@@ -94,7 +88,7 @@ function GettingStarted({ checklist, instantlyKey, setInstantlyKey, savingKey, s
         {allDone && (
           <div className="mt-4 flex items-center gap-2">
             <Rocket className="w-5 h-5" style={{ color: '#d4930e' }} />
-            <p className="text-sm text-white font-medium">LogiCRM is ready to go.</p>
+            <p className="text-sm text-white font-medium">Start sending.</p>
           </div>
         )}
       </div>
@@ -107,15 +101,8 @@ function GettingStarted({ checklist, instantlyKey, setInstantlyKey, savingKey, s
               <div className="flex-1 min-w-0">
                 <p className={`text-sm font-medium ${done ? 'text-emerald-400' : 'text-white'}`}>{item.label}</p>
                 <p className="text-xs text-blue-300/40 mt-0.5">{item.desc}</p>
-                {item.key === 'hasInstantlyKey' && !done && (
-                  <div className="mt-3 flex items-center gap-2">
-                    <Key className="w-4 h-4 text-blue-300/30 shrink-0" />
-                    <input type="password" value={instantlyKey} onChange={e => setInstantlyKey(e.target.value)} placeholder="Paste your Instantly API key" className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-blue-300/30 focus:outline-none focus:ring-2 focus:ring-yellow-500/50" />
-                    <button onClick={saveInstantlyKey} disabled={savingKey} className="px-3 py-2 rounded-lg text-xs font-semibold hover:brightness-110 disabled:opacity-60 transition-colors" style={{ backgroundColor: '#d4930e', color: '#0f1c35' }}>{savingKey ? 'Saving...' : 'Save'}</button>
-                  </div>
-                )}
               </div>
-              {!done && item.key !== 'hasInstantlyKey' && (
+              {!done && (
                 <button onClick={() => item.link ? router.push(item.link) : item.action?.()} className="text-xs font-medium flex items-center gap-1 shrink-0 transition-colors" style={{ color: '#d4930e' }}>
                   Go <ArrowRight className="w-3 h-3" />
                 </button>
@@ -183,11 +170,7 @@ export default function SettingsPage() {
 
   // Tabs + Onboarding
   const [activeTab, setActiveTab] = useState('getting-started')
-  const [checklist, setChecklist] = useState({ hasProfile: false, hasInstantlyKey: false, hasContacts: false, hasCampaign: false, hasTeamMember: false })
-  const [userPlan, setUserPlan] = useState<string | null>(null) // used in onboarding fetch
-  void userPlan // suppress unused warning — plan loaded for future gating
-  const [instantlyKey, setInstantlyKey] = useState('')
-  const [savingKey, setSavingKey] = useState(false)
+  const [checklist, setChecklist] = useState({ hasProfile: false, hasEmail: false, hasContacts: false, hasCampaign: false, hasTeamMember: false })
 
   // ── Load ─────────────────────────────────────────────────────────────────
 
@@ -352,9 +335,7 @@ export default function SettingsPage() {
       const obRes = await fetch(`/api/onboarding?userId=${user.id}`)
       const obData = await obRes.json()
       if (obData.checklist) setChecklist(obData.checklist)
-      if (obData.plan) setUserPlan(obData.plan)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (_e) { /* ignore */ }
+    } catch { /* ignore */ }
 
     setLoading(false)
   }, [])
@@ -411,25 +392,6 @@ export default function SettingsPage() {
   }
 
   // ── Company ──────────────────────────────────────────────────────────────
-
-  async function saveInstantlyKey() {
-    if (!instantlyKey.trim()) { toast.error('Enter an API key'); return }
-    setSavingKey(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setSavingKey(false); return }
-    const res = await fetch('/api/onboarding', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: user.id, instantly_api_key: instantlyKey.trim() }),
-    })
-    if (res.ok) {
-      toast.success('Instantly API key saved!')
-      setChecklist(prev => ({ ...prev, hasInstantlyKey: true }))
-    } else {
-      toast.error('Failed to save API key')
-    }
-    setSavingKey(false)
-  }
 
   async function saveCompany() {
     setSavingCompany(true)
@@ -721,7 +683,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Getting Started Tab */}
-      {activeTab === 'getting-started' && <GettingStarted checklist={checklist} instantlyKey={instantlyKey} setInstantlyKey={setInstantlyKey} savingKey={savingKey} saveInstantlyKey={saveInstantlyKey} setActiveTab={setActiveTab} router={router} />}
+      {activeTab === 'getting-started' && <GettingStarted checklist={checklist} setActiveTab={setActiveTab} router={router} />}
 
       {/* Email Tab */}
       {activeTab === 'email' && (
