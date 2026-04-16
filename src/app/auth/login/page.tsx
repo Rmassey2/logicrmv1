@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
@@ -15,9 +17,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login')
   const [promoCode, setPromoCode] = useState('')
   const [showPromo, setShowPromo] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
 
   // Redirect invite tokens to accept-invite page
   useEffect(() => {
@@ -61,6 +64,18 @@ export default function LoginPage() {
     router.refresh()
   }
 
+  const handleForgotPassword = async () => {
+    if (!email.trim()) { setError('Enter your email address'); return }
+    setLoading(true)
+    setError('')
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: 'https://logicrmv1.vercel.app/auth/reset-password',
+    })
+    if (error) { setError(error.message); setLoading(false); return }
+    setResetSent(true)
+    setLoading(false)
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#0f1c35' }}>
       <div className="w-full max-w-md px-4">
@@ -71,65 +86,118 @@ export default function LoginPage() {
           <p className="text-blue-300 text-sm mt-2">Built for carriers and freight brokers</p>
         </div>
         <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <h2 className="text-xl font-bold text-gray-800 mb-1">
-            {mode === 'login' ? 'Welcome back' : 'Create your account'}
-          </h2>
-          <p className="text-gray-400 text-sm mb-6">
-            {mode === 'login' ? 'Sign in to your LogiCRM account' : 'Start managing your freight relationships'}
-          </p>
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 rounded-lg px-4 py-3 text-sm mb-4">{error}</div>
-          )}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Email</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Password</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500" />
-            </div>
-            {mode === 'signup' && (
-              <div>
-                {!showPromo ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowPromo(true)}
-                    className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    Have a promo code?
+          {mode === 'forgot' ? (
+            <>
+              <h2 className="text-xl font-bold text-gray-800 mb-1">Reset your password</h2>
+              <p className="text-gray-400 text-sm mb-6">Enter your email and we&apos;ll send you a reset link.</p>
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-600 rounded-lg px-4 py-3 text-sm mb-4">{error}</div>
+              )}
+              {resetSent ? (
+                <div className="space-y-4">
+                  <div className="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 text-sm">
+                    Check your email for a password reset link.
+                  </div>
+                  <button onClick={() => { setMode('login'); setResetSent(false); setError('') }}
+                    className="w-full py-3 rounded-lg font-bold text-white text-sm"
+                    style={{ backgroundColor: '#d4930e' }}>
+                    Back to Sign In
                   </button>
-                ) : (
+                </div>
+              ) : (
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Promo Code</label>
-                    <input
-                      type="text"
-                      value={promoCode}
-                      onChange={(e) => setPromoCode(e.target.value)}
-                      placeholder="Enter code"
-                      className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                    />
+                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Email</label>
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@company.com"
+                      onKeyDown={(e) => e.key === 'Enter' && handleForgotPassword()}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+                  </div>
+                  <button onClick={handleForgotPassword} disabled={loading}
+                    className="w-full py-3 rounded-lg font-bold text-white text-sm"
+                    style={{ backgroundColor: '#d4930e' }}>
+                    {loading ? 'Sending...' : 'Send Reset Link'}
+                  </button>
+                  <div className="text-center">
+                    <button onClick={() => { setMode('login'); setError('') }}
+                      className="text-sm text-gray-500 hover:text-gray-700">
+                      Back to Sign In
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <h2 className="text-xl font-bold text-gray-800 mb-1">
+                {mode === 'login' ? 'Welcome back' : 'Create your account'}
+              </h2>
+              <p className="text-gray-400 text-sm mb-6">
+                {mode === 'login' ? 'Sign in to your LogiCRM account' : 'Start managing your freight relationships'}
+              </p>
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-600 rounded-lg px-4 py-3 text-sm mb-4">{error}</div>
+              )}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Email</label>
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@company.com"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Password</label>
+                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+                </div>
+                {mode === 'signup' && (
+                  <div>
+                    {!showPromo ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowPromo(true)}
+                        className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        Have a promo code?
+                      </button>
+                    ) : (
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Promo Code</label>
+                        <input
+                          type="text"
+                          value={promoCode}
+                          onChange={(e) => setPromoCode(e.target.value)}
+                          placeholder="Enter code"
+                          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
+                <button onClick={handleSubmit} disabled={loading}
+                  className="w-full py-3 rounded-lg font-bold text-white text-sm"
+                  style={{ backgroundColor: '#d4930e' }}>
+                  {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}
+                </button>
               </div>
-            )}
-            <button onClick={handleSubmit} disabled={loading}
-              className="w-full py-3 rounded-lg font-bold text-white text-sm"
-              style={{ backgroundColor: '#d4930e' }}>
-              {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}
-            </button>
-          </div>
-          <div className="mt-6 text-center">
-            <button onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError('') }}
-              className="text-sm text-gray-500 hover:text-gray-700">
-              {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
-            </button>
-          </div>
+              {mode === 'login' && (
+                <div className="mt-3 text-center">
+                  <button onClick={() => { setMode('forgot'); setError('') }}
+                    className="text-sm text-gray-400 hover:text-gray-600">
+                    Forgot your password?
+                  </button>
+                </div>
+              )}
+              <div className="mt-4 text-center">
+                <button onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError('') }}
+                  className="text-sm text-gray-500 hover:text-gray-700">
+                  {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
         <p className="text-center text-blue-400 text-xs mt-6">2026 Bid Genie AI · LogiCRM</p>
       </div>
