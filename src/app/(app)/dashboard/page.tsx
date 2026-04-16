@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import Link from 'next/link'
-import { Users, TrendingUp, Mail, Upload, Loader2 } from 'lucide-react'
+import { Users, TrendingUp, Mail, Upload, Loader2, MessageSquareText } from 'lucide-react'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,6 +25,14 @@ export default function DashboardPage() {
   const [stats, setStats] = useState({ contacts: 0, deals: 0, campaigns: 0 })
   const [greeting, setGreeting] = useState<{ agent: typeof AGENTS[0]; text: string } | null>(null)
   const [greetingLoading, setGreetingLoading] = useState(true)
+  const [replies, setReplies] = useState<Array<{
+    id: string
+    contact_id: string
+    subject: string
+    notes: string | null
+    created_at: string
+    contacts: { first_name: string; last_name: string; company: string | null } | null
+  }>>([])
 
   useEffect(() => {
     async function init() {
@@ -42,6 +50,17 @@ export default function DashboardPage() {
         deals: leadsRes.count ?? 0,
         campaigns: campaignsRes.count ?? 0,
       })
+
+      // Fetch recent campaign replies
+      const { data: replyData } = await supabase
+        .from('activities')
+        .select('id, contact_id, subject, notes, created_at, contacts(first_name, last_name, company)')
+        .or('type.eq.reply,source.eq.instantly_reply')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(5)
+      if (replyData) setReplies(replyData as unknown as typeof replies)
+
       setLoading(false)
 
       // Pick random agent and fetch greeting
@@ -74,6 +93,17 @@ export default function DashboardPage() {
     { label: 'Campaigns', icon: Mail, href: '/campaigns' },
     { label: 'Import Contacts', icon: Upload, href: '/contacts/import' },
   ]
+
+  function formatTimeAgo(dateStr: string) {
+    const diff = Date.now() - new Date(dateStr).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return 'just now'
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs}h ago`
+    const days = Math.floor(hrs / 24)
+    return `${days}d ago`
+  }
 
   if (loading) {
     return (
@@ -166,6 +196,47 @@ export default function DashboardPage() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Recent Replies */}
+      <div className="mb-10">
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <MessageSquareText className="w-5 h-5" style={{ color: '#d4930e' }} />
+          Recent Replies
+        </h3>
+        {replies.length === 0 ? (
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-center">
+            <p className="text-blue-300/60 text-sm">No replies yet — replies from your campaigns will appear here.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {replies.map((reply) => {
+              const contact = reply.contacts as { first_name: string; last_name: string; company: string | null } | null
+              const name = contact ? `${contact.first_name || ''} ${contact.last_name || ''}`.trim() : 'Unknown'
+              const company = contact?.company || ''
+              const snippet = (reply.notes || '').slice(0, 120)
+              const timeAgo = formatTimeAgo(reply.created_at)
+              return (
+                <Link
+                  key={reply.id}
+                  href={`/contacts/${reply.contact_id}`}
+                  className="block bg-white/5 border border-white/10 hover:border-yellow-500/40 rounded-2xl p-4 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-white">{name}</p>
+                      {company && <p className="text-xs text-blue-300/70">{company}</p>}
+                      {snippet && (
+                        <p className="text-xs text-blue-200/50 mt-1 line-clamp-2">{snippet}</p>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-blue-400/50 whitespace-nowrap shrink-0">{timeAgo}</span>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Footer */}

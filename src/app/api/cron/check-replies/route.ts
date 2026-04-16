@@ -75,22 +75,21 @@ export async function GET(req: NextRequest) {
       const contactName = contact ? `${contact.first_name || ''} ${contact.last_name || ''}`.trim() : leadEmail
       const replySnippet = (event.body || event.text || event.subject || '').slice(0, 300)
 
-      // Determine activity type
+      // Determine activity type and source
       let activityType = 'email'
+      let activitySource = 'instantly'
       let activitySubject = ''
       const et = event.event_type
 
       if (et === 'reply_received') {
-        activityType = 'email'
+        activityType = 'reply'
+        activitySource = 'instantly_reply'
         activitySubject = `Campaign Reply: ${contactName}`
       } else if (et === 'email_opened') {
-        activityType = 'email'
         activitySubject = `Campaign Email Opened: ${contactName}`
       } else if (et === 'link_clicked') {
-        activityType = 'email'
         activitySubject = `Campaign Link Clicked: ${contactName}`
       } else if (et === 'email_bounced') {
-        activityType = 'email'
         activitySubject = `Campaign Email Bounced: ${contactName}`
       }
 
@@ -102,7 +101,7 @@ export async function GET(req: NextRequest) {
           type: activityType,
           subject: activitySubject,
           notes: replySnippet || null,
-          source: 'instantly',
+          source: activitySource,
           created_at: event.timestamp || new Date().toISOString(),
         })
       }
@@ -115,22 +114,25 @@ export async function GET(req: NextRequest) {
           repEmail = repUser?.user?.email || repEmail
         }
 
-        const emoji = et === 'reply_received' ? '🔥' : '⚠️'
-        const typeLabel = et === 'reply_received' ? 'New Reply' : 'Email Bounced'
         const contactLink = contact ? `${appUrl}/contacts/${contact.id}` : appUrl
+        const replyPreview = (event.body || event.text || event.subject || '').slice(0, 200)
+
+        const emailSubject = et === 'reply_received'
+          ? `New reply from ${contact?.first_name || contactName} at ${contact?.company || 'Unknown Company'}`
+          : `⚠️ Email Bounced from ${contactName}`
 
         try {
           await resend.emails.send({
             from: 'LogiCRM <jarrett@macoships.com>',
             to: [repEmail],
-            subject: `${emoji} ${typeLabel} from ${contactName}`,
+            subject: emailSubject,
             html: `
               <div style="background:#0f1c35;color:#e2e8f0;padding:32px;border-radius:12px;font-family:sans-serif;max-width:500px">
-                <h2 style="color:#d4930e;margin:0 0 8px">${typeLabel}</h2>
+                <h2 style="color:#d4930e;margin:0 0 8px">${et === 'reply_received' ? 'New Campaign Reply' : 'Email Bounced'}</h2>
                 <p style="margin:0 0 4px;font-size:18px;color:#fff;font-weight:bold">${contactName}</p>
                 ${contact?.company ? `<p style="margin:0 0 16px;font-size:14px;color:#94a3b8">${contact.company}</p>` : ''}
-                ${replySnippet ? `<div style="background:rgba(255,255,255,0.05);border-left:3px solid #d4930e;padding:12px;border-radius:8px;margin:16px 0;font-size:14px;color:#cbd5e1">${replySnippet}</div>` : ''}
-                <a href="${contactLink}" style="display:inline-block;background:#d4930e;color:#0f1c35;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px;margin-top:8px">View Contact</a>
+                ${replyPreview ? `<div style="background:rgba(255,255,255,0.05);border-left:3px solid #d4930e;padding:12px;border-radius:8px;margin:16px 0;font-size:14px;color:#cbd5e1">${replyPreview}</div>` : ''}
+                <a href="${contactLink}" style="display:inline-block;background:#d4930e;color:#0f1c35;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px;margin-top:8px">View Contact in LogiCRM</a>
                 <p style="margin:16px 0 0;font-size:11px;color:#475569">LogiCRM · Automated notification</p>
               </div>
             `,
