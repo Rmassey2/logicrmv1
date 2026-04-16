@@ -150,27 +150,24 @@ export async function POST(req: NextRequest) {
     let signature = ''
     let sigName = ''
     let sendingEmail = ''
-    let sigPhone = ''
-    let sigWebsite = ''
     if (campaignUserId) {
-      const { data: authUser } = await supabase.auth.admin.getUserById(campaignUserId)
-      const meta = authUser?.user?.user_metadata ?? {}
-      sigName =
-        meta.display_name ||
-        [meta.first_name, meta.last_name].filter(Boolean).join(' ') ||
-        ''
-      sendingEmail = meta.sending_email || ''
-      sigPhone = formatPhone(meta.phone || '')
-      sigWebsite = cleanWebsite(meta.website || '')
-      const sigCompany = meta.company_name || ''
+      // Fetch campaign OWNER's profile — must use admin.getUserById with service role
+      const { data: ownerUser } = await supabase.auth.admin.getUserById(campaignUserId)
+      const meta = ownerUser?.user?.user_metadata ?? {}
+      console.log('[launch] Owner user_id:', campaignUserId, 'email:', ownerUser?.user?.email, 'meta keys:', Object.keys(meta))
 
-      // Signature uses the user's auth email — sending_email is only for Instantly sender identity
-      const sigEmail = authUser?.user?.email || ''
+      sigName = [meta.first_name, meta.last_name].filter(Boolean).join(' ')
+      sendingEmail = meta.sending_email || ''
+      const sigCompany = meta.company_name || ''
+      const sigPhone = formatPhone(meta.phone || '')
+      const sigEmail = ownerUser?.user?.email || ''
+      const sigWebsite = cleanWebsite(meta.website || '')
+
       const sigLines = [sigName, sigCompany, sigPhone, sigEmail, sigWebsite].filter(Boolean)
       if (sigLines.length > 0) {
         signature = '\n\n' + sigLines.join('\n') + '\n\n\n'
       }
-      console.log('[launch] Signature:', signature)
+      console.log('[launch] Signature built from owner:', sigName, '| phone:', sigPhone, '| email:', sigEmail)
     }
 
     // 4. Create campaign in Instantly.ai (placeholder subject/body — will be overwritten by PATCH with full sequences)
