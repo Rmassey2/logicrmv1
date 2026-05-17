@@ -1,5 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
+
+const MACO_DOMAIN = '@macotransport.com'
+const MACO_OWNER_EMAIL = 'rmassey@macotransport.com'
+
+async function findMacoOrgId(supabase: SupabaseClient): Promise<string | null> {
+  try {
+    const { data: users } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 })
+    const owner = users?.users?.find(u => u.email?.toLowerCase() === MACO_OWNER_EMAIL.toLowerCase())
+    if (!owner) return null
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('id')
+      .eq('owner_id', owner.id)
+      .maybeSingle()
+    return org?.id ?? null
+  } catch (err) {
+    console.error('[setup-org] findMacoOrgId failed:', err)
+    return null
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,6 +43,23 @@ export async function POST(req: NextRequest) {
 
     if (existing) {
       return NextResponse.json({ status: 'already_exists' })
+    }
+
+    // MACO domain auto-routing: drop them into the canonical MACO org as a rep
+    if (email.toLowerCase().endsWith(MACO_DOMAIN)) {
+      const macoOrgId = await findMacoOrgId(supabase)
+      if (macoOrgId) {
+        const { error: memErr } = await supabase
+          .from('organization_members')
+          .insert({ org_id: macoOrgId, user_id, role: 'rep' })
+        if (memErr) {
+          console.error('[setup-org] MACO membership insert failed:', memErr)
+          return NextResponse.json({ error: memErr.message }, { status: 500 })
+        }
+        console.log('[setup-org] Joined MACO org:', macoOrgId, 'for user:', user_id)
+        return NextResponse.json({ status: 'joined_maco', org_id: macoOrgId })
+      }
+      console.warn('[setup-org] @macotransport.com signup but canonical MACO org not found; falling through to default flow')
     }
 
     // Create org with trial or exempt status

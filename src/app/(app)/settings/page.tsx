@@ -168,6 +168,10 @@ export default function SettingsPage() {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  // MACO owner-only seed
+  const [seeding, setSeeding] = useState(false)
+  const [seedResult, setSeedResult] = useState<string | null>(null)
+
   // Tabs + Onboarding
   const [activeTab, setActiveTab] = useState('getting-started')
   const [checklist, setChecklist] = useState({ hasProfile: false, hasEmail: false, hasContacts: false, hasCampaign: false, hasTeamMember: false })
@@ -647,6 +651,30 @@ export default function SettingsPage() {
     router.push('/auth/login')
   }
 
+  // ── MACO owner-only seed ─────────────────────────────────────────────────
+
+  async function handleSeedMaco() {
+    if (!currentUserId) { toast.error('Not signed in'); return }
+    setSeeding(true)
+    setSeedResult(null)
+    try {
+      const res = await fetch('/api/admin/seed-maco-org', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: currentUserId }),
+      })
+      const data = await res.json()
+      setSeedResult(JSON.stringify(data, null, 2))
+      if (data.success) toast.success('MACO org promoted to exempt + team')
+      else toast.error(data.error || 'Seed failed')
+    } catch (err) {
+      setSeedResult(String(err))
+      toast.error('Seed failed')
+    } finally {
+      setSeeding(false)
+    }
+  }
+
   // ── Loading ──────────────────────────────────────────────────────────────
 
   if (loading) {
@@ -1076,6 +1104,33 @@ export default function SettingsPage() {
             </button>
           </div>
         </SectionCard>
+
+        {/* ── MACO Admin (owner only) ─────────────────────────────────────── */}
+        {userEmail.toLowerCase() === 'rmassey@macotransport.com' && (
+          <SectionCard title="MACO Admin">
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-white font-medium">Promote MACO org to exempt + team</p>
+                <p className="text-xs text-blue-300/50 mt-1">
+                  One-time fix: sets your org to <code>subscription_status=exempt</code>, <code>plan=team</code>, removes trial expiry, and adds Brian as a manager if his account exists. Safe to run multiple times.
+                </p>
+              </div>
+              <button
+                onClick={handleSeedMaco}
+                disabled={seeding}
+                className="px-5 py-2.5 rounded-lg font-semibold text-white text-sm hover:brightness-110 disabled:opacity-60 transition-colors"
+                style={{ backgroundColor: '#d4930e' }}
+              >
+                {seeding ? 'Running...' : 'Promote MACO Org'}
+              </button>
+              {seedResult && (
+                <pre className="text-xs text-blue-200 bg-black/30 border border-white/10 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">
+                  {seedResult}
+                </pre>
+              )}
+            </div>
+          </SectionCard>
+        )}
 
         {/* ── Danger Zone ─────────────────────────────────────────────────── */}
         <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-6 sm:p-8">
